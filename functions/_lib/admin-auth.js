@@ -1,5 +1,5 @@
 const encoder=new TextEncoder(),COOKIE='__Host-growth_admin',TTL=3600
-export const headers={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','X-Frame-Options':'DENY','Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"}
+export const headers={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin','X-Frame-Options':'DENY','Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"}
 export const json=(v,status=200,extra={})=>Response.json(v,{status,headers:{...headers,...extra}})
 export function configured(e){return ['ADMIN_USERNAME','ADMIN_PASSWORD','VIEWER_USERNAME','VIEWER_PASSWORD','ADMIN_SESSION_SECRET'].every(k=>typeof e[k]==='string'&&e[k].length>0)&&e.ADMIN_PASSWORD.length>=16&&e.VIEWER_PASSWORD.length>=16&&e.ADMIN_SESSION_SECRET.length>=64&&e.ADMIN_USERNAME!==e.VIEWER_USERNAME}
 async function mac(e,value){const k=await crypto.subtle.importKey('raw',encoder.encode(e.ADMIN_SESSION_SECRET),{name:'HMAC',hash:'SHA-256'},false,['sign']);return new Uint8Array(await crypto.subtle.sign('HMAC',k,encoder.encode(value)))}

@@ -86,3 +86,13 @@ CSV仅包含按日聚合数值，不包含账号、Cookie、session_id或原始�
 实际结果：/admin未登录303至/admin/login，登录页200，stats/export未登录401。仅用一次虚构错误账号探测，登录返回401“账号或密码错误”，不再503“登录尚未配置”，证明服务端配置校验与限流存储通路可用；未读取Secret值，未尝试猜测真实密码。
 
 真实admin/viewer登录及看板体验仍待负责人验收，不能将错误账号探测视为登录成功。AI仍enabled=false；远程master仍a089b4c，无Production部署。
+
+## 2026-11-01 表单origin错误修复
+
+真人验收截图显示{"error":"origin"}。代码复查发现，后台页面响应使用Referrer-Policy:no-referrer；根据Fetch规范，普通HTML表单POST可能因此发送Origin:null，与严格同源校验冲突。先前测试手动附上Origin，所以未覆盖页面响应头造成的浏览器行为。未读取用户密码或浏览器表单内容。
+
+最小修复：后台共用响应头改为Referrer-Policy:same-origin；同源表单保留来源，跨站不发送Referer。sameOrigin函数和登录、退出的Origin校验保持不变，仍拒绝null/缺失/跨站来源，不以信任任意Referer作回退。
+
+回归断言增加：登录页及已登录看板响应策略为same-origin；标准URL编码表单可以完成测试账号登录；Origin:null仍返回403；退出原有测试继续保留。接口测试不能替代真实浏览器表单验收，修复Preview后需重新从登录页输入，不能刷新旧POST错误页。
+
+规范依据：https://fetch.spec.whatwg.org/#append-a-request-origin-header 。本轮只修Preview，不改Production或游戏埋点。
