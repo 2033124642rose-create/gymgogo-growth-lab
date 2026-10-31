@@ -1,5 +1,7 @@
 # GymGoGo 2.0 后台登录与数据看板说明
 
+当前状态（2026-11-01）：产品负责人确认admin和viewer均测试成功，Preview真人验收通过。下方早期“待配置/待验收”文字是历史记录，以最终验收节为准。Production发布尚未授权。
+
 ## 范围和入口
 
 公开游戏不登录，不增加后台入口。后台单独由Pages Functions输出，游戏React入口、四个埋点和analytics_events均不改动。开发分支codex/admin-analytics-preview，仅Preview验收，未合并master，不发布Production。
@@ -67,7 +69,7 @@ CSV仅包含按日聚合数值，不包含账号、Cookie、session_id或原始�
 6. 检查浏览器Cookie有HttpOnly、Secure、SameSite，不从页面拿到密码或签名Secret。
 
 完成后等待产品负责人确认，不能自动合并master或发布Production。部署URL及实际Secret配置验证状态见交付记录；未配置Secret不能宣称真实账号已登录成功。
-## Preview实际部署记录
+## Preview实际部署记录（历史状态）
 
 实现提交：1d52f1c，分支codex/admin-analytics-preview。Preview部署已成功：
 
@@ -96,3 +98,14 @@ CSV仅包含按日聚合数值，不包含账号、Cookie、session_id或原始�
 回归断言增加：登录页及已登录看板响应策略为same-origin；标准URL编码表单可以完成测试账号登录；Origin:null仍返回403；退出原有测试继续保留。接口测试不能替代真实浏览器表单验收，修复Preview后需重新从登录页输入，不能刷新旧POST错误页。
 
 规范依据：https://fetch.spec.whatwg.org/#append-a-request-origin-header 。本轮只修Preview，不改Production或游戏埋点。
+
+
+## 2026-11-01 Preview真人验收通过
+
+产品负责人反馈：“成功，admin和viewer都测试成功”。记录为两个角色在修复后的Preview真人测试通过，不另外编造逐项操作次数、设备信息或未明确反馈的独立子项结果。
+
+验收版本：修复提交d3e5b75；Preview https://c6eb0f25.gymgogo-growth-lab.pages.dev/admin/login 。自动化证据：此前35文件334项通过，类型、构建和离线Functions编译通过；线上未登录API401、同源错误账号表单进入错误提示重定向、Origin:null仍403。真人反馈与上述自动检查分别记账。
+
+本轮收尾仅更新本文档并创建Preview分支本地提交，不新增功能，不重新部署，不合并master或发布Production，不调用AI、不修改原始事件或任何Secret。
+
+下一步只有在负责人另行授权生产发布后，才核对Production的五个Secret、会话隔离、D1绑定和发布步骤。不要将Preview验收通过视为Production已上线。
