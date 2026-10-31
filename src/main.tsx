@@ -1,3 +1,4 @@
+import {AnalyticsNotice} from './analytics/Analytics'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
@@ -8,6 +9,6 @@ import './battle.css'
 import './round.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode><App /></React.StrictMode>,
+  <React.StrictMode><App /><AnalyticsNotice/></React.StrictMode>,
 )
 import './settlement/settlement.css'

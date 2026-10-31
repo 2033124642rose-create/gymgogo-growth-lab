@@ -14,7 +14,11 @@
     "prebuild": "npm run prepare:vision",
     "test": "vitest run",
     "check:cloud": "node scripts/check-cloud.mjs",
-    "deploy": "node -e \"console.error('Deployment is not configured for Growth Lab. Create independent resources first.'); process.exit(1)\""
+    "deploy": "node -e \"console.error('Deployment is not configured for Growth Lab. Create independent resources first.'); process.exit(1)\"",
+    "analytics:local": "wrangler pages dev dist --port 8788",
+    "analytics:migrate:local": "wrangler d1 migrations apply gymgogo-growth-lab --local",
+    "analytics:funnel:local": "wrangler d1 execute gymgogo-growth-lab --local --file sql/funnel.sql",
+    "analytics:cleanup:local": "wrangler d1 execute gymgogo-growth-lab --local --file sql/cleanup.sql"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "1.2.0",

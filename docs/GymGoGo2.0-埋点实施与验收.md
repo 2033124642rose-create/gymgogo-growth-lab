@@ -1,0 +1,54 @@
+# GymGoGo 2.0 埋点实施与验收
+
+日期：2026-10-31。仅限 D:\gymgogo-growth-lab。原1.0项目、网站、AI资源未操作。
+
+## 产品决策与实施
+
+产品负责人决定只研究首页至有效开局，不新增玩法，不做V2或A/B；四事件、匿名会话、30分钟无活动换会话、演示排除、一个D1、一张核心表、原始记录计划保留30天。首页主按钮直接进入多人：这是路径而不是主动偏好。
+
+Codex检查真实入口、摄像头和ReadyGate/PartySession状态，完成客户端、同源接收、D1迁移、限流、SQL、测试及获授权发布。指定的旧评审文档不在独立项目中，未读取原项目补拷；以下按本轮确认规则及实际源码实现。
+
+## 埋点定义
+
+| 事件 | 实际触发 | 不触发的情况 |
+|---|---|---|
+| page_view | 首页首次前台可见，按会话一次 | StrictMode重挂载、刷新/返回同会话不重复 |
+| start_click | 单人准备/再挑战；首页两处派对入口 | 只看介绍、只开摄像头、派对表单提交不是再次入口 |
+| mode_select | 与入口同次操作，记录solo/party路径 | 默认显示单人不算选择，不称主动偏好 |
+| game_start | 单人ReadyGate start且设置active；派对preparing→active | 单纯点击、摄像头running、倒计时、创建派对、恢复问答都不算 |
+
+字段：event_id、session_id、event_name、event_time、entry_point、play_type、product_version、received_at；另外保留game_mode（solo/party或首页null），用于跨模式归因，防止用单人成功填补多人流失。没有environment字段。
+
+product_version=v1-analytics-1。event_time为UTC客户端时间，received_at由服务端生成。entry_point只有home/solo_prepare/solo_replay/party_hero/party_header/party_flow/party_restore；不收自由文本、完整URL或query。
+
+page_view每会话一次，game_start每会话/模式/真实或演示一次；入口每会话/事件/模式/演示类型/具体入口去重，重复点击不增加人数。event_id随机UUID；服务端主键去重。当前发送不自动重试，失败不阻断游戏，可能少计；不是强保证送达系统。
+
+sessionStorage保存匿名会话与去重标记，30分钟无活动后轮换；同会话刷新/返回/再玩不新建。前台点击、键盘、滚动、可见性变化更新活动；active时一分钟心跳仅延长会话，不新增事件。后台不续期。跨标签页通常不同；复制标签页可能复制sessionStorage，暂不可靠识别复制标签，列为限制。无sessionStorage时内存回退会导致刷新多计；无法读取退出偏好则默认不采集。
+
+页面下方有匿名统计说明与退出/允许按钮，选择存localStorage，不存持久用户ID。退出后不再新发事件，已在网络中请求不可撤回，已存事件按保留计划处理；再次允许新会话。退出不影响游戏。
+
+## 数据与保护
+
+唯一云数据库gymgogo-growth-lab，绑定ANALYTICS_DB；ID为d39c6160-48ec-417c-b179-ed1f649e8af3（资源标识，不是密钥）。核心表analytics_events；另有Wrangler迁移系统表d1_migrations，不是第二张业务表。
+
+前端只请求同源/api/events；接口仅允许正式域名及localhost/127.0.0.1，不允许Preview域名采集，不绑定Preview数据库。后端严格字段/枚举/UUID/版本/时间校验，拒绝超过2KB，事件时间距接收最多10分钟。同源Origin校验不是身份认证，不能阻止伪造脚本。
+
+SQLite单条INSERT…SELECT原子检查：同会话滚动一分钟20条、UTC日200条，全站UTC日5000条。限制依赖D1持久记录，不依赖普通内存，不采集IP；匿名ID可以伪造，但全站写入上限仍有效。该上限只限制入库行，不保证无限请求下D1读取或边缘调用成本/额度；重复或恶意请求仍耗读取，Free额度到顶可能拒绝采集。未启用付费、未提供公网查询接口。
+
+数据库异常503、超限429、字段400、请求过大413、非指定来源403；不会让游戏等待。无Key，无模型调用。未记录姓名、视频、关键点、AI答案、IP或User-Agent。网络基础设施仍会处理连接元信息，此处承诺仅针对本埋点负载、业务表和应用日志。
+
+30天是原始记录保留计划，D1不会自动TTL；目前提供sql/cleanup.sql及手动执行命令，需负责人至少每日定期执行才能落实，不声称已有自动调度。自动删除需要后续单独配置，不额外创建Worker或数据库。
+
+## 验证边界
+
+- 本地迁移已通过Wrangler --local执行；模拟写入和SQL由本地Miniflare/workerd D1执行，不写云数据库。
+- 34个测试文件、332项测试通过；含7项新增测试及原325项。UI测试以合成关键点驱动真实状态机，覆盖单人/多人active触发；不代表真人开局。
+- 类型检查、生产构建及Cloudflare离线编译通过。首轮并行构建时两项旧问答UI测试超时，单独复查及无并行构建的全套复跑均通过，未改问答玩法。
+- 云D1创建和远程空表迁移已成功。登录账号含新Growth Lab项目，Git源与新仓库一致，AI=false且无旧服务绑定。订阅账单只读接口403，未取得新的套餐查询证据；沿用负责人之前确认的Workers Free，所有操作未升级付费，D1官方支持Free。
+- Git/生产发布及生产真实事件验收结果在本节后续追加；不得把下面本地结果当真实自然流量。
+
+## 待真人验收
+
+发布后打开正式域名，允许匿名统计，真实点击单人准备或派对入口、授权摄像头并完成就位倒计时。不是要求完成整关；active即开局。不要用按钮演示替代真实开局。通过验收时间窗口和session_id在SQL中单列人工流量；不增加environment字段、不把人工记录称自然用户。
+
+参考：[D1本地开发](https://developers.cloudflare.com/d1/best-practices/local-development/)、[D1迁移](https://developers.cloudflare.com/d1/reference/migrations/)。

@@ -1,3 +1,5 @@
+import {gameStarted} from '../analytics/client'
+import {useAnalyticsActive} from '../analytics/Analytics'
 import { HATS, HAT_IDS, defaultHat } from '../ar/hats'
 import type { HatId } from '../ar/hats'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -118,7 +120,7 @@ export default function PartyGame({ onExit }: { onExit: () => void }) {
       if(state.levelAttemptId!==game.snapshot().levelAttemptId&&game.snapshot().phase==='levelFailed')game.retryLevel(performance.now())
       if(state.levelId!==game.snapshot().level.id||state.levelAttemptId!==game.snapshot().levelAttemptId)throw Error('本地与服务端进度不一致，已阻止继续调用。')
       saved.credentials.maxLevel=state.maxLevel
-      session.current=game;credentials.current=saved.credentials;startAt.current=saved.startAt;endedAt.current=saved.endedAt
+      analyticsRestored.current=true;session.current=game;credentials.current=saved.credentials;startAt.current=saved.startAt;endedAt.current=saved.endedAt
       if(state.maxLevel===1)setQuizNotice('这是旧的第一关限定派对。若要体验三关，请结束本场后新建AI派对；不修改旧成绩或许可。')
       coordinator.current=new QuizCoordinator(game,quizPort(saved.credentials,setQuizNotice),()=>{persist(true);sync()})
       setSeconds(Math.floor(((endedAt.current||Date.now())-startAt.current)/1000));setKnowledge(true);setError('');sync()
@@ -129,6 +131,8 @@ export default function PartyGame({ onExit }: { onExit: () => void }) {
   const [hats, setHats] = useState<HatId[]>(() => Array.from({length:6},(_,index) => defaultHat(index)))
   const session = useRef<PartySession | null>(null)
   const [view, setView] = useState<PartySnapshot | null>(null)
+  useAnalyticsActive(view?.phase==='active')
+  const analyticsRestored=useRef(false)
   const [immersive, setImmersive] = useState(false)
   const screenRoot = useRef<HTMLDivElement>(null)
   const [recognition, setRecognition] = useState<BattleRecognition>({title:'摄像头已关闭',hint:'请主动开启摄像头。',kind:'idle'})
@@ -189,7 +193,9 @@ export default function PartyGame({ onExit }: { onExit: () => void }) {
     if (document.hidden || (frame && performance.now() - frame.timestamp > 700)) {
       session.current.check(performance.now(), true); sync(); return
     }
+    const before=session.current.snapshot().phase
     const effect = session.current.frame(frame)
+    if(before==='preparing'&&session.current.snapshot().phase==='active')gameStarted('party','real',analyticsRestored.current?'party_restore':'party_flow')
     if (effect.countdown && sound.current) audio.current?.countdown()
     if (effect.attack) {
       setHit(true); clearTimeout(hitTimer.current); hitTimer.current = setTimeout(() => setHit(false), 450)

@@ -1,3 +1,5 @@
+import {entry,gameStarted} from './analytics/client'
+import {useAnalyticsHome,useAnalyticsActive} from './analytics/Analytics'
 import { ProductHero, ProductGuide } from './product/ProductIntro'
 import { Monster, ForestBackdrop } from './game/ForestScene'
 import PartyGame from './party/PartyGame'
@@ -37,6 +39,8 @@ export default function App() {
   const effectsEnabledRef = useRef(true)
   const [audioReady, setAudioReady] = useState(false)
   const [phase, setPhase] = useState<'idle' | 'active' | 'won'>('idle')
+  useAnalyticsHome(!partyMode)
+  useAnalyticsActive(!partyMode&&phase==='active'&&mode==='real')
   const [count, setCount] = useState(0)
   const [seconds, setSeconds] = useState(0)
   const [hit, setHit] = useState(false)
@@ -88,6 +92,7 @@ export default function App() {
         counter.current.acceptReadyBaseline(frame)
         setSquat(counter.current.getState())
         round.active=true;round.startedAt=frame.timestamp
+        gameStarted('solo','real','solo_prepare')
         startTime.current=Date.now();setPhase('active')
         if(effectsEnabledRef.current)battleAudio.current?.countdown()
       }
@@ -130,6 +135,7 @@ export default function App() {
 
   function start() {
     if(readyGate.current.phase==='waiting'||readyGate.current.phase==='countdown')return
+    entry('solo',phase==='won'?'solo_replay':'solo_prepare',mode)
     const id=session.current.id+1
     setResult(null)
     session.current={id,active:mode==='demo',mode,count:0,startedAt:performance.now()}
@@ -142,6 +148,7 @@ export default function App() {
     setCount(0); setSeconds(0); setHit(false)
     startTime.current = Date.now()
     setPhase(mode==='real'?'idle':'active')
+    if(mode==='demo')gameStarted('solo','demo','solo_prepare')
     requestAnimationFrame(() => (battleImmersive ? battleActionButton : actionButton).current?.focus())
   }
   function reset(nextMode = mode) {
@@ -191,12 +198,12 @@ export default function App() {
     <header className="topbar">
       <a className="brand" href="#main" aria-label="GymGoGo 首页"><span className="brand-mark"><Zap fill="currentColor" size={25}/></span><span>Gym<span className="brand-go">GoGo</span><small>AI 体感派对游戏</small></span></a>
       <div className="header-center"><span className="green-dot"/> 朋友到齐，冒险开始。</div>
-      <button className="help-button" onClick={() => { reset(); setPartyMode(true) }}>创建本地派对</button>
+      <button className="help-button" onClick={() => { entry('party','party_header','real'); reset(); setPartyMode(true) }}>创建本地派对</button>
       <button ref={helpButton} className="help-button" onClick={() => setHelp(true)}><CircleHelp size={17}/> 玩法说明</button>
     </header>
 
     <main id="main">
-      <ProductHero onStart={() => { reset(); setPartyMode(true) }}/>
+      <ProductHero onStart={() => { entry('party','party_hero','real'); reset(); setPartyMode(true) }}/>
       <div className="solo-heading"><span>一个人，也能出发</span><h2>单人体感挑战</h2><p>先和森林团子过过招：10 次深蹲完成单人挑战。想玩三关合作与知识问答？点击「立即开始」创建派对。</p></div>
 
       <div ref={battleRoot} className={`game-layout ${battleImmersive ? 'is-battle-immersive' : ''}`}
