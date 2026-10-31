@@ -1,0 +1,15 @@
+{
+  "name": "gymgogo-growth-lab",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-10-30",
+  "vars": {
+    "PUBLIC_AI_ENABLED": "false"
+  },
+  "env": {
+    "preview": {
+      "vars": {
+        "PUBLIC_AI_ENABLED": "false"
+      }
+    }
+  }
+}

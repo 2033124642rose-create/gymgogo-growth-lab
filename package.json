@@ -1,0 +1,39 @@
+{
+  "name": "gymgogo-growth-lab",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5174 --strictPort",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4174 --strictPort",
+    "typecheck": "tsc --noEmit",
+    "prepare:vision": "node scripts/prepare-vision-assets.mjs",
+    "postinstall": "npm run prepare:vision",
+    "predev": "npm run prepare:vision",
+    "prebuild": "npm run prepare:vision",
+    "test": "vitest run",
+    "check:cloud": "node scripts/check-cloud.mjs",
+    "deploy": "node -e \"console.error('Deployment is not configured for Growth Lab. Create independent resources first.'); process.exit(1)\""
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "1.2.0",
+    "lucide-react": "^0.468.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "esbuild": "^0.28.2",
+    "jsdom": "^26.1.0",
+    "miniflare": "^5.20261023.3-beta",
+    "typescript": "~5.9.3",
+    "vite": "^7.1.0",
+    "vitest": "^3.2.7",
+    "wrangler": "^4.156.0"
+  }
+}
