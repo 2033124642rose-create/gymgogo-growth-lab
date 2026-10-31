@@ -67,3 +67,14 @@ CSV仅包含按日聚合数值，不包含账号、Cookie、session_id或原始�
 6. 检查浏览器Cookie有HttpOnly、Secure、SameSite，不从页面拿到密码或签名Secret。
 
 完成后等待产品负责人确认，不能自动合并master或发布Production。部署URL及实际Secret配置验证状态见交付记录；未配置Secret不能宣称真实账号已登录成功。
+## Preview实际部署记录
+
+实现提交：1d52f1c，分支codex/admin-analytics-preview。Preview部署已成功：
+
+- 登录：https://31f42cee.gymgogo-growth-lab.pages.dev/admin/login
+- 后台：https://31f42cee.gymgogo-growth-lab.pages.dev/admin
+- 分支别名：https://codex-admin-analytics-previe.gymgogo-growth-lab.pages.dev/admin
+
+已在Preview实际核对：admin未登录303至/admin/login，登录页200，stats/export/raw在未登录状态均401，响应no-store且无真实统计字段。admin/viewer登录成功、导出差异已在本地D1使用测试账号验证；目前Preview未配置5个Secret，真实账号登录及页面真人验收尚待负责人完成，不能标记为通过。
+
+云端新增限流表前后analytics_events均9条；只改变独立限流表及迁移系统记录。无游戏源码或四事件改动。master仍a089b4c，Production未部署。后续保存Preview Secret后需重新部署Preview；不要合并或推送master。
