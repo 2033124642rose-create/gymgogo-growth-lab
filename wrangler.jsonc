@@ -9,7 +9,15 @@
     "preview": {
       "vars": {
         "PUBLIC_AI_ENABLED": "false"
-      }
+      },
+      "d1_databases": [
+        {
+          "binding": "ANALYTICS_DB",
+          "database_name": "gymgogo-growth-lab",
+          "database_id": "d39c6160-48ec-417c-b179-ed1f649e8af3",
+          "migrations_dir": "migrations"
+        }
+      ]
     }
   },
   "d1_databases": [
