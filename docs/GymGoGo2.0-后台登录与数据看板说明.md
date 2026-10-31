@@ -78,3 +78,11 @@ CSV仅包含按日聚合数值，不包含账号、Cookie、session_id或原始�
 已在Preview实际核对：admin未登录303至/admin/login，登录页200，stats/export/raw在未登录状态均401，响应no-store且无真实统计字段。admin/viewer登录成功、导出差异已在本地D1使用测试账号验证；目前Preview未配置5个Secret，真实账号登录及页面真人验收尚待负责人完成，不能标记为通过。
 
 云端新增限流表前后analytics_events均9条；只改变独立限流表及迁移系统记录。无游戏源码或四事件改动。master仍a089b4c，Production未部署。后续保存Preview Secret后需重新部署Preview；不要合并或推送master。
+
+## 2026-11-01 Preview Secret修正后复核
+
+负责人已在Preview修正Secret，重新部署成功：https://57e17691.gymgogo-growth-lab.pages.dev 。稳定分支别名仍为 https://codex-admin-analytics-previe.gymgogo-growth-lab.pages.dev 。此前“未配置/校验失败”属于历史状态。
+
+实际结果：/admin未登录303至/admin/login，登录页200，stats/export未登录401。仅用一次虚构错误账号探测，登录返回401“账号或密码错误”，不再503“登录尚未配置”，证明服务端配置校验与限流存储通路可用；未读取Secret值，未尝试猜测真实密码。
+
+真实admin/viewer登录及看板体验仍待负责人验收，不能将错误账号探测视为登录成功。AI仍enabled=false；远程master仍a089b4c，无Production部署。
