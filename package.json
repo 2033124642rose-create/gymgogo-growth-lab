@@ -17,8 +17,9 @@
     "deploy": "node -e \"console.error('Deployment is not configured for Growth Lab. Create independent resources first.'); process.exit(1)\"",
     "analytics:local": "wrangler pages dev dist --port 8788",
     "analytics:migrate:local": "wrangler d1 migrations apply gymgogo-growth-lab --local",
-    "analytics:funnel:local": "wrangler d1 execute gymgogo-growth-lab --local --file sql/funnel.sql",
-    "analytics:cleanup:local": "wrangler d1 execute gymgogo-growth-lab --local --file sql/cleanup.sql"
+    "analytics:funnel:local": "node scripts/analytics-query.mjs --local",
+    "analytics:cleanup:local": "wrangler d1 execute gymgogo-growth-lab --local --file sql/cleanup.sql",
+    "analytics:funnel:remote": "node scripts/analytics-query.mjs --remote"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "1.2.0",

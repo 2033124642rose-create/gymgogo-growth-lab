@@ -16,3 +16,7 @@ it('opt out prevents collection and failures never break play',()=>{
  setOptOut(true);entry('solo','solo_prepare','real');gameStarted('solo','real','solo_prepare');expect(fetch).not.toHaveBeenCalled()
  setOptOut(false);vi.mocked(fetch).mockImplementation(()=>{throw Error('offline')});expect(()=>entry('solo','solo_prepare','real')).not.toThrow()
 })
+
+it('honors opt out in memory even if browser refuses preference writes',()=>{
+ vi.spyOn(Storage.prototype,'setItem').mockImplementation(()=>{throw Error('readonly')});setOptOut(true);entry('solo','solo_prepare','real');expect(fetch).not.toHaveBeenCalled();
+})

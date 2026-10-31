@@ -215,6 +215,7 @@ export default function PartyGame({ onExit }: { onExit: () => void }) {
   async function createParty(event: React.FormEvent) {
     event.preventDefault()
     const selected = names.slice(0, size)
+    analyticsRestored.current=false
     const issue = validateNames(selected)
     if (issue) { setError(issue); return }
     if(busyRef.current)return

@@ -38,7 +38,7 @@ FROM analytics_events ORDER BY received_at DESC LIMIT 30;
 # 仅本地模拟数据
 npm run analytics:funnel:local
 # 明确--remote才读取唯一的云端数据库
-npx wrangler d1 execute gymgogo-growth-lab --remote --file sql/funnel.sql
+npm run analytics:funnel:remote
 ```
 
 SQL按v1-analytics-1取每个会话首次首页时间；后续事件必须不早于该首页。首次首页之后的真实点击/模式/开局按session_id去重；演示模式完全排除核心分子。点击至开局还必须模式一致，且开局时间不早于对应点击。恢复造成缺点击的真实开局可进入首页有效开局率，但不补造点击，不进入点击至开局分子。没有首页的孤立开局不进入首页漏斗分子。
@@ -86,3 +86,22 @@ npx wrangler d1 execute gymgogo-growth-lab --remote --file sql/cleanup.sql
 ```
 
 本地用npm run analytics:cleanup:local。没有自动TTL；负责人需要定期执行，不能仅写计划就称已自动删除。命令不重置AI预算、不访问其他数据库。
+
+说明：Wrangler远程--file走导入流程，可能只返回“执行1条查询”而不展示SELECT结果。本项目只读脚本使用--command并直接传递SQL，不经Shell拼接，能返回真实漏斗结果。清理和迁移仍使用--file。
+## 本次发布方式与后续更新
+
+本次GitHub推送成功，但Cloudflare自动构建未生成新任务；已用Wrangler显式部署，不能声称自动部署链路已验收。后续更新先检查Cloudflare Deployments；若没有新任务，在确认当前目录、D1绑定和AI关闭后运行：
+
+```powershell
+cd D:\gymgogo-growth-lab
+npm test -- --maxWorkers=1
+npm run typecheck
+npm run build
+npx wrangler pages deploy dist --project-name gymgogo-growth-lab --branch master
+```
+
+不要换成旧项目名gymgogo，不部署cloudflare/里的AI Worker。本轮已完成1个单人真实开局的四事件顺序验收；生产人工记录与自然用户研究结果必须分开。
+
+## 本轮生产验收快照
+
+3个首页会话、1个真实点击会话、1个单人路径会话、1个真实开局会话，点击至开局1/1。该窗口有效开局率1/3=33.33%，仅作系统验收，不作为自然流量或策略效果。1个完整会话由产品负责人确认是人工操作；其余首页记录不作自然真人认定。生产数据会随后续访问变化，不应把此快照当实时余额或实时指标。

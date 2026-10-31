@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-31",
+  "type": "production-acceptance-window-not-organic-experiment",
+  "implementationCommit": "32b14f4",
+  "confirmedHumanOrderedSoloSessions": 1,
+  "homeSessions": 3,
+  "realClickSessions": 1,
+  "realStartSessions": 1,
+  "sameModeClickStartSessions": 1,
+  "eventRows": {
+    "page_view": 3,
+    "start_click": 1,
+    "mode_select": 1,
+    "game_start": 1
+  },
+  "tests": {
+    "files": 34,
+    "passed": 333,
+    "newTests": 8
+  },
+  "realModelCalls": 0,
+  "notes": [
+    "No synthetic events posted to production.",
+    "Two homepage-only sessions are unattributed, not claimed as organic users.",
+    "Party active tracking validated locally with synthetic landmarks, not a public human test."
+  ]
+}
