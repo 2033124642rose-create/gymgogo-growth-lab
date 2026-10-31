@@ -1,6 +1,6 @@
 # GymGoGo 2.0 后台登录与数据看板说明
 
-当前状态（2026-11-01）：产品负责人确认admin和viewer均测试成功，Preview真人验收通过。下方早期“待配置/待验收”文字是历史记录，以最终验收节为准。Production发布尚未授权。
+当前状态（2026-11-01）：Preview两个角色已真人验收；Production已获授权并部署，正式域名登录及角色真人验收结果见本文末节。早期“待配置/未授权”均为历史记录。
 
 ## 范围和入口
 
@@ -109,3 +109,19 @@ CSV仅包含按日聚合数值，不包含账号、Cookie、session_id或原始�
 本轮收尾仅更新本文档并创建Preview分支本地提交，不新增功能，不重新部署，不合并master或发布Production，不调用AI、不修改原始事件或任何Secret。
 
 下一步只有在负责人另行授权生产发布后，才核对Production的五个Secret、会话隔离、D1绑定和发布步骤。不要将Preview验收通过视为Production已上线。
+
+
+## 2026-11-01 Production正式发布
+
+负责人授权复用Preview四项账号密码并亲自在Production填写，内部会话Secret单独安全生成。实现与审计合入提交a54e0f7，正常快进合并master并推送，部署f93fd13b完成；未强推或重写历史。正式登录：https://gymgogo-growth-lab.pages.dev/admin/login 。
+
+线上实际核对：首页200无需登录；/admin未登录303至登录页；7/30天stats、export、raw路径未登录401；后台no-store及Referrer-Policy:same-origin生效；一次虚构错误账号请求401而非配置503，证明Production配置校验与限流通路就绪。D1绑定为独立ANALYTICS_DB，无原AI服务绑定，AI仍false。生产真实账号验收待本人反馈，不能用错误账号探测代替。
+
+维护：以后同一正式登录URL使用自己的角色账号。改密码时在Production Secret更新对应值，并轮换ADMIN_SESSION_SECRET、重新部署；要保持两环境账号一致，需本人同步更新Preview。更新代码先分支测试，再正常合入master，推送后检查部署；本次未出现新自动构建任务，因此用显式项目名的Wrangler命令发布。
+
+
+## 2026-11-01 Production真人验收通过
+
+负责人反馈：“Production两种账号验收通过”。验收请求覆盖admin看板、7/30天切换、聚合CSV导出、退出以及viewer聚合查看/无导出按钮/直接导出403。按该整体反馈记录正式验收通过，不编造点击次数、设备信息或自然用户研究结论。
+
+最终结论：本MVP发布范围的安全审计和Production真人验收通过；35个原测试文件加1个审计文件共36文件335项通过，类型、构建与离线编译通过。仍保留本文说明的1小时无状态Cookie撤销限制、授权账号查询可能耗读取额度及手动30天清理要求；这不是无漏洞或无限免费承诺。未新增V2或A/B，发布后停止。
