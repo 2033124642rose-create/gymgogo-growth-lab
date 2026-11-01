@@ -54,8 +54,11 @@ async function setup(){
   fireEvent.click(screen.getByRole('button',{name:'创建派对 · 进入第一关'}));await screen.findByRole('button',{name:'准备挑战'})
 }
 async function camera(){
+  // The async party render can expose buttons before passive controller effects flush.
+  // Settle those effects BEFORE clicking; otherwise controller.current?.start() may be a no-op.
+  await act(async()=>{await Promise.resolve()})
   // Flush mocked permission/video promises inside React act before checking worker creation.
-  await act(async()=>{fireEvent.click(screen.getByRole('button',{name:'开启摄像头'}))});await waitFor(()=>expect(FakeWorker.instances).toHaveLength(1),{timeout:3000})
+  await act(async()=>{fireEvent.click(screen.getByRole('button',{name:'开启摄像头'}))});expect(media).toHaveBeenCalledTimes(1);await waitFor(()=>expect(FakeWorker.instances).toHaveLength(1),{timeout:3000})
   const worker=FakeWorker.instances[0];act(()=>worker.reply({type:'ready'}));const seq=makeSequence()
   const feed=(angle:number,drop:number,ms:number)=>act(()=>seq.hold(angle,drop,ms).forEach(f=>worker.reply({type:'result',...f})))
   return {start:()=>{fireEvent.click(screen.getByRole('button',{name:'准备挑战'}));feed(175,0,5500)},rep:()=>{feed(175,0,500);feed(130,.08,500);feed(175,0,700)}}

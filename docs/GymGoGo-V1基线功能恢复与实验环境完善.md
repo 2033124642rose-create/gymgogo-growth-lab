@@ -37,3 +37,31 @@ AI_API_KEY仅由本人填写新Worker Secret。SOURCE_HASH_SECRET及独立QUIZ_A
 保持现有product_version=v1-analytics-1及四事件定义不变。功能恢复时记录Git提交、Worker版本、UTC生效时刻作为稳定基线起点；后续分析必须按首页进入时间筛选恢复后的完整区间，并排除人工验收会话。恢复前后的功能状态不同，不能直接混算为同一稳定基线，不能称V2转化提升。
 
 最终资源状态、真实冒烟结果、预算与Production基线起点将在验证完成后追加。尚未验证的内容不能标记为通过。
+
+## 启用前本人确认与价格复核
+
+2026-11-01，负责人回复新Worker Key已保存、当前免费余额985.21K、到期2027年1月（未提供具体日）、地域华北、免费额度用完即停已开启。没有复用旧截图余额。按现有华北2北京兼容端点配置，真实可用性由本轮冒烟验证。官方qwen-flash页面当前列示北京低输入档0.15元/百万输入、1.5元/百万输出，价格校验日期更新为2026-11-01：https://help.aliyun.com/zh/model-studio/qwen-flash 。
+
+内部金额预留上限沿用5元，仅为请求估算保护，不授权实际收费；每次按10000输入/400输出保守预留0.0021元。供应商账号免费额度共享，必须保留用完即停。Preview新绑定已部署5aca3398，Production仍未启用新AI。
+
+## Secret类型安全拦截
+
+首次云端元数据核对发现，新Worker AI_API_KEY被控制台保存为普通plain_text变量，而不是Secret。立即暂停本任务启用进程，确认远端PUBLIC_AI_ENABLED=false、FREE_QUOTA_CONFIRMED=false，独立账本0次；未进行真实模型请求。检查本轮本地日志未命中Key特征，没有因此撤销或修改原版Key。已请负责人在新Worker把该项改为secret_text。启用预检新增硬性检查：三项Worker凭据必须是secret_text，且不能有D1绑定，失败即停止部署。
+
+## Preview真实模型冒烟结果
+
+负责人已将AI_API_KEY修正为secret_text，三项凭据类型预检通过，独立命名空间5c07d5615549452f92e0b20edfa0e518，Worker无D1绑定。启用版本033e3999-7ef3-46ed-bdd4-edc853f81885。Preview 5aca3398的/api/quiz/status返回enabled=true、maxLevel=3。
+
+真实请求严格2次，无重试：出题“运动前热身的主要目的是什么？”，回答为自然表述身体热起来、活动关节肌肉、为运动准备；判题source=ai、model=qwen-flash、verdict=correct，返回怪兽趣味反馈。账本0→1→2，预留0→0.0021→0.0042元，累计限额1000、日300、来源日60/分钟10。已关闭冒烟派对，避免后续操作同题。不把本次接口冒烟称完整三关真人AI验收；没有请求/api/events。
+
+原版账号/Worker/预算未读取或修改；本新Worker的Key由本人提供，是否同一百炼账号依据本人确认，未尝试通过Key明文辨认账号。供应商最终免费Token扣减及账单不能由应用预留金额推断。
+
+## 最终回归的测试初始化修正
+
+首次37文件337项通过后，最终复跑有1项旧问答UI用例在FakeWorker创建前失败。源码检查发现，该测试异步建派对后根据按钮DOM立即点击摄像头，而CameraCamp控制器在被动effect中初始化；测试可能先点击到controller.current尚为空的按钮，造成启动无操作。仅在测试camera()辅助函数中先用act刷新待执行effect，再点击，并立即断言模拟getUserMedia确实被调用；不放宽超时/识别阈值，不修改任何游戏源文件。先前失败不掩盖，修正后重新验证。
+
+## 发布前最终检查
+
+测试初始化修正后的单独问答UI用例10项通过，随后37文件337项全部通过，类型、生产构建与Functions离线编译通过。对9d066bd的src、后台鉴权/聚合API、events接口及funnel.sql逐项diff为空；前端资源仍index-DvGLovTH.js。最终改动限于独立资源/开关配置、README/操作规范/本记录及测试。Production恢复后将用原四事件的相同定义采集，不启动V2或A/B。
+
+DPAPI预算令牌只在当前Windows账号下解密；迁移电脑应重新生成预算只读令牌并同步新Worker与Growth Lab Pages Secret，不可通过删除命名空间、改global-budget-v1名称或清表重置累计额度。价格校验超过7天或免费额度耗尽会安全停止；稳定基线研究期间需记录这些可用性变化，不能假设恢复后一直接口可用。

@@ -3,7 +3,7 @@
   "pages_build_output_dir": "./dist",
   "compatibility_date": "2026-10-30",
   "vars": {
-    "PUBLIC_AI_ENABLED": "false"
+    "PUBLIC_AI_ENABLED": "true"
   },
   "env": {
     "preview": {
@@ -32,6 +32,12 @@
       "database_name": "gymgogo-growth-lab",
       "database_id": "d39c6160-48ec-417c-b179-ed1f649e8af3",
       "migrations_dir": "migrations"
+    }
+  ],
+  "services": [
+    {
+      "binding": "QUIZ_SERVICE",
+      "service": "gymgogo-growth-lab-quiz-service"
     }
   ]
 }

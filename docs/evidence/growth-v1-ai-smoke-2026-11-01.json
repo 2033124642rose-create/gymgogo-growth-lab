@@ -1,0 +1,30 @@
+{
+  "date": "2026-11-01",
+  "stage": "V1 baseline capability restoration, not V2",
+  "environment": "Cloudflare Preview",
+  "worker": "gymgogo-growth-lab-quiz-service",
+  "namespace": "5c07d5615549452f92e0b20edfa0e518",
+  "workerVersion": "033e3999-7ef3-46ed-bdd4-edc853f81885",
+  "provider": "bailian",
+  "model": "qwen-flash",
+  "question": "运动前热身的主要目的是什么？",
+  "verdict": "correct",
+  "monsterReaction": "哎呀，我这关节可没白热过！",
+  "realModelRequests": 2,
+  "automaticRetries": 0,
+  "ledgerBefore": 0,
+  "ledgerAfter": 2,
+  "reservedCny": 0.0042,
+  "limits": {
+    "total": 1000,
+    "daily": 300,
+    "sourceDaily": 60,
+    "sourceMinute": 10
+  },
+  "analyticsEventsSentBySmoke": 0,
+  "tests": {
+    "files": 37,
+    "passed": 337
+  },
+  "note": "Real API smoke, not a full human three-level run. Reserved CNY is not an actual bill. No keys, party tokens, raw user answers or original-project state included."
+}
