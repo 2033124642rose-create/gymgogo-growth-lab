@@ -1,0 +1,69 @@
+{
+  "observedUTC": "2026-11-01T02:37:46.724Z",
+  "implementationCommit": "4379b82",
+  "deployment": "373ba108",
+  "checks": [
+    {
+      "path": "/",
+      "status": 200,
+      "location": null,
+      "asset": "/assets/index-DvGLovTH.js"
+    },
+    {
+      "path": "/api/quiz/status",
+      "status": 200,
+      "location": null,
+      "capability": {
+        "enabled": true,
+        "notice": "AI知识挑战已启用，每人每关一道题；受全站及来源额度保护。",
+        "maxLevel": 3,
+        "approvedCalls": 1000
+      }
+    },
+    {
+      "path": "/admin",
+      "status": 303,
+      "location": "/admin/login"
+    },
+    {
+      "path": "/admin/login",
+      "status": 200,
+      "location": null
+    },
+    {
+      "path": "/api/admin/stats?days=7",
+      "status": 401,
+      "location": null
+    },
+    {
+      "path": "/api/admin/stats?days=30",
+      "status": 401,
+      "location": null
+    },
+    {
+      "path": "/api/admin/export",
+      "status": 401,
+      "location": null
+    },
+    {
+      "path": "/api/quiz-budget",
+      "status": 403,
+      "location": null
+    },
+    {
+      "path": "/api/events",
+      "status": 405,
+      "location": null
+    }
+  ],
+  "modelRequestsTotal": 2,
+  "independentBudget": {
+    "totalCalls": 2,
+    "reservedCny": 0.0042,
+    "totalLimit": 1000,
+    "dailyLimit": 300,
+    "sourceDailyLimit": 60,
+    "sourceMinuteLimit": 10
+  },
+  "note": "Read-only production verification after exactly two Preview model requests; no additional production model call, no full human three-level claim."
+}
