@@ -13,7 +13,7 @@
     "AI_PROVIDER": "bailian",
     "AI_MODEL": "qwen-flash",
     "AI_BASE_URL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    "QUIZ_APPROVED_CALLS": "0",
+    "QUIZ_APPROVED_CALLS": "1000",
     "QUIZ_DAILY_CALLS": "300",
     "QUIZ_SOURCE_DAILY_CALLS": "60",
     "QUIZ_SOURCE_MINUTE_CALLS": "10",
