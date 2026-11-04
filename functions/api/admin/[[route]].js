@@ -1,3 +1,4 @@
+import {experimentStats,experimentSessions} from '../../_lib/experiment-stats.js'
 import {session,configured,authenticate,cookie,clearCookie,sameOrigin,limit,smallBody,json} from '../../_lib/admin-auth.js'
 import {statistics} from '../../_lib/admin-stats.js'
 export async function onRequest({request,env}){try{const route=new URL(request.url).pathname.split('/').at(-1)
@@ -14,6 +15,7 @@ export async function onRequest({request,env}){try{const route=new URL(request.u
  const user=await session(request,env);if(!user)return json({error:'unauthorized'},401)
  if(route==='logout'){if(request.method!=='POST'||!sameOrigin(request))return json({error:'origin'},403);return new Response(null,{status:303,headers:{Location:'/admin/login','Set-Cookie':clearCookie,'Cache-Control':'no-store'}})}
  if(request.method!=='GET')return json({error:'method'},405)
+ if(route==='experiment'){if(env.AB_ENABLED!=='true')return json({error:'disabled'},503);return json({rows:await experimentStats(env),sessionRows:await experimentSessions(env),notice:'QA与正式实验分列；小样本仅描述，不作显著性结论。'})}
  if(!['stats','export'].includes(route))return json({error:'not_found'},404)
  if(route==='export'&&user.role!=='admin')return json({error:'forbidden'},403)
  const raw=new URL(request.url).searchParams.get('days')||'7';if(!['7','30'].includes(raw))return json({error:'range'},400)

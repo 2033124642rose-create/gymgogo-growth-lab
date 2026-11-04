@@ -1,3 +1,5 @@
+import {useContext} from 'react'
+import {ExperienceV2} from '../v2/experience'
 import HatOverlay from '../ar/HatOverlay'
 import type { HatOverlayHandle } from '../ar/HatOverlay'
 import type { HatId } from '../ar/hats'
@@ -35,6 +37,7 @@ const TRACKING_TEXT = {
 const GROUP_NAMES = { shoulders: '肩膀', hips: '髋部', knees: '膝盖', ankles: '脚踝' } as const
 
 export default function CameraCamp({ screenRoot, onImmersiveChange, onRecognitionChange, onPoseFrame, challengeCue, hat, countingMode = false, inferencePaused = false, onVoiceEnabledChange,voiceProfile }: CameraCampProps = {}) {
+  const v2=useContext(ExperienceV2)
   const profileRef=useRef(voiceProfile);profileRef.current=voiceProfile
   const pausedRef = useRef(inferencePaused)
   pausedRef.current = inferencePaused
@@ -228,6 +231,8 @@ export default function CameraCamp({ screenRoot, onImmersiveChange, onRecognitio
     {state.phase === 'running' && !inferencePaused && <div className="joint-status" aria-label="主要关节可见性">
       {Object.entries(GROUP_NAMES).map(([key, name]) => <span key={key} className={state.groups[key as keyof typeof GROUP_NAMES] ? 'visible' : ''}><i/>{name}{state.groups[key as keyof typeof GROUP_NAMES] ? '可见' : '待入镜'}</span>)}
     </div>}
+    {v2 && <div className="v2-privacy">摄像头画面仅用于本地动作识别，不会上传视频或图像。匿名行为统计仍可在页面下方退出。</div>}
+    {v2 && !inferencePaused && <p className="v2-action-help" role="status">{state.phase!=='running'?'先开启摄像头，再走远站稳。':state.tracking!=='tracked'?'未检测到完整人体：请稍微站远一点，让肩膀和双脚入镜；也可调整光线或镜头角度。':'已识别人体：倒计时结束后，下蹲 → 起立才加 1；已识别下蹲时请起立，留意战斗区动作反馈。'}</p>}
     <div className="camera-controls">
       {!active ? <button className="camera-toggle" onClick={() => { if (soundEnabledRef.current) void player.current?.unlock(); void controller.current?.start() }}><Camera size={17}/>{state.phase === 'error' ? '重试开启摄像头' : '开启摄像头'}</button> :
         <button className="camera-stop" onClick={() => controller.current?.stop()}>{busy ? <X size={17}/> : <CameraOff size={17}/>} {busy ? '取消并关闭摄像头' : '关闭摄像头'}</button>}

@@ -1,4 +1,5 @@
-import {entry,gameStarted} from './analytics/client'
+import StartGuide,{guideSeen,GUIDE_KEY} from './v2/StartGuide'
+import {entry,gameStarted,experimentEvent} from './analytics/client'
 import {useAnalyticsHome,useAnalyticsActive} from './analytics/Analytics'
 import { ProductHero, ProductGuide } from './product/ProductIntro'
 import { Monster, ForestBackdrop } from './game/ForestScene'
@@ -20,7 +21,13 @@ import { ArrowRight, Check, ChevronRight, CircleHelp, Clock3, Flag, Heart, Leaf,
 
 const TARGET = 10
 
-export default function App() {
+export default function App({experienceV2=false}:{experienceV2?:boolean}={}) {
+  const [tutorial,setTutorial]=useState(()=>experienceV2&&!guideSeen())
+  useEffect(()=>{if(tutorial)queueMicrotask(()=>experimentEvent('tutorial_view'))},[tutorial])
+  const [chooseMode,setChooseMode]=useState(false)
+  const [soloSelected,setSoloSelected]=useState(false)
+  function dismissGuide(){experimentEvent('tutorial_skip');setTutorial(false);try{localStorage.setItem(GUIDE_KEY,'1')}catch{/* storage unavailable: dismiss for this visit */}}
+
   const [partyMode, setPartyMode] = useState(false)
   const [mode, setMode] = useState<'real' | 'demo'>('real')
   const [result,setResult]=useState<BattleSummary|null>(null)
@@ -198,13 +205,16 @@ export default function App() {
     <header className="topbar">
       <a className="brand" href="#main" aria-label="GymGoGo 首页"><span className="brand-mark"><Zap fill="currentColor" size={25}/></span><span>Gym<span className="brand-go">GoGo</span><small>AI 体感派对游戏</small></span></a>
       <div className="header-center"><span className="green-dot"/> 朋友到齐，冒险开始。</div>
-      <button className="help-button" onClick={() => { entry('party','party_header','real'); reset(); setPartyMode(true) }}>创建本地派对</button>
-      <button ref={helpButton} className="help-button" onClick={() => setHelp(true)}><CircleHelp size={17}/> 玩法说明</button>
+      {!experienceV2 && <button className="help-button" onClick={() => { entry('party','party_header','real'); reset(); setPartyMode(true) }}>创建本地派对</button>}
+      <button ref={helpButton} className="help-button" onClick={() => {if(experienceV2){setChooseMode(false);setTutorial(true)}else setHelp(true)}}><CircleHelp size={17}/> 玩法说明</button>
     </header>
 
     <main id="main">
-      <ProductHero onStart={() => { entry('party','party_hero','real'); reset(); setPartyMode(true) }}/>
-      <div className="solo-heading"><span>一个人，也能出发</span><h2>单人体感挑战</h2><p>先和森林团子过过招：10 次深蹲完成单人挑战。想玩三关合作与知识问答？点击「立即开始」创建派对。</p></div>
+      <ProductHero onStart={() => { if(experienceV2){experimentEvent('start_click');setChooseMode(true);return} entry('party','party_hero','real'); reset(); setPartyMode(true) }}/>
+      {experienceV2 && (tutorial||chooseMode) && <StartGuide key={tutorial?'tutorial':'mode'} tutorial={tutorial} onComplete={()=>{setTutorial(false);try{localStorage.setItem(GUIDE_KEY,'1')}catch{};experimentEvent('tutorial_complete');setChooseMode(true)}} onClose={()=>{if(tutorial)dismissGuide();else setChooseMode(false)}} onSelect={selected=>{setChooseMode(false);reset();if(selected==='party'){entry('party','party_hero','real');setPartyMode(true)}else{setSoloSelected(true);start();requestAnimationFrame(()=>document.getElementById('v2-solo')?.scrollIntoView({behavior:'smooth'}))}}}/>}
+      {experienceV2 && soloSelected && <button className="help-button v2-back" onClick={()=>{reset();setSoloSelected(false);setChooseMode(true)}}>切换玩法</button>}
+      {(!experienceV2 || soloSelected) && <>
+      <div id="v2-solo" className="solo-heading"><span>一个人，也能出发</span><h2>单人体感挑战</h2><p>{experienceV2?'已准备：开启摄像头后走远站稳，倒计时结束再下蹲。下蹲后站起来才加 1，无需再次点击准备。':'先和森林团子过过招：10 次深蹲完成单人挑战。想玩三关合作与知识问答？点击「立即开始」创建派对。'}</p></div>
 
       <div ref={battleRoot} className={`game-layout ${battleImmersive ? 'is-battle-immersive' : ''}`}
         role={battleImmersive ? 'dialog' : undefined} aria-modal={battleImmersive ? true : undefined}
@@ -257,6 +267,7 @@ export default function App() {
         {result&&<BattleResult key={result.roundId} result={result} onReplay={start} immersive={battleImmersive}/>}
       </div>
 
+      </>}
       <ProductGuide/>
     </main>
     <footer><span>GymGoGo <span className="footer-dot">·</span> 让运动多一点好玩。</span><span>MADE FOR YOUR NEXT LITTLE WIN <Heart size={12}/></span></footer>
