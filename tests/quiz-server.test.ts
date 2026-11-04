@@ -79,12 +79,12 @@ describe('local durable AI quiz service, provider mocked',()=>{
     expect((await s.service.evaluate(s.op(1,'question',{levelId:'ghost-realm'}),s.c.token)).error).toBe('stale_turn')
     expect(s.fetcher).not.toHaveBeenCalled()
   })
-  it('fails closed for public mode, missing allowance/key/price, expired prices and unsafe provider URL',async()=>{
+  it('fails closed for public mode, missing allowance/key/price and unsafe provider URL',async()=>{
     const fetcher=vi.fn()
     for(const options of [
       {env,publicMode:true},{env:{...env,GYMGO_QUIZ_ENABLED:'false'}},{env:{...env,DASHSCOPE_API_KEY:''}},
       {env:{...env,QUIZ_APPROVED_CALLS:'0'}},{env:{...env,QUIZ_INPUT_CNY_PER_MILLION:''}},
-      {env:{...env,QUIZ_PRICE_CHECKED_ON:'2026-09-01'}},{env:{...env,BAILIAN_BASE_URL:'http://evil.invalid'}},
+      {env:{...env,BAILIAN_BASE_URL:'http://evil.invalid'}},
     ]){
       const s=createQuizService({...options,now:()=>initial,fetchImpl:fetcher})
       expect(s.capability().enabled).toBe(false);expect(s.createParty(2).error).toBe('disabled')

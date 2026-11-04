@@ -4,10 +4,10 @@ import type { QuizPort } from './QuizCoordinator'
 export interface QuizCredentials { partyId: string; token: string; maxLevel?: number }
 export const QUIZ_SAVE_KEY = 'gymgogo.local-knowledge.v1'
 const notices: Record<string,string> = {
-  disabled:'本地AI未启用，尚未调用模型。', budget_exhausted:'本次调用额度已用完，请休息或安全退出。',
+  disabled:'AI服务未启用或配置不可用，请稍后重试或选择纯运动模式；这不代表额度用完。', budget_exhausted:'本次调用额度已用完，请休息或安全退出。',
   interrupted_request:'上次请求已中断，可能已消耗额度；不会自动再次调用。可明确重试或退出。',
   model_timeout:'模型响应超时，可能已消耗额度；请主动重试或退出。',
-  store_unavailable:'本地题目与预算存储不可用，已停止调用。', session_expired:'保存的派对已过期，不能重新抽取原回合题目。',
+  store_unavailable:'题目与预算服务暂不可用，已停止调用；请稍后重试，这不代表额度用完。', session_expired:'保存的派对已过期，不能重新抽取原回合题目。',
   session_invalid:'无法恢复原派对凭据，请结束这场挑战。', question_unsuitable:'AI题目未通过可答性检查，尚未向玩家出题。',
   judgment_format:'判题响应不完整，未判失败。', model_forbidden:'百炼模型权限未通过，请检查服务端配置。',
   model_busy:'模型服务繁忙，未判失败。', generation_limit:'出题尝试次数已用完，请安全退出。', judgment_limit:'本题判题尝试次数已用完，请安全退出。',

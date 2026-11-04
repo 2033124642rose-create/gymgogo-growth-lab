@@ -31,11 +31,10 @@ export function createQuizService({env=process.env,fetchImpl=fetch,now=Date.now,
     // must explicitly bind its checked prices, rather than silently reusing the old model's rates.
     if((ai.provider!=='bailian'||ai.model!=='qwen-flash'||env.QUIZ_PRICE_PROVIDER!==undefined||env.QUIZ_PRICE_MODEL!==undefined)&&
       (env.QUIZ_PRICE_PROVIDER!==ai.provider||env.QUIZ_PRICE_MODEL!==ai.model))return {enabled:false,notice:'模型价格配置与当前服务商或模型不匹配，请先核对并绑定价格；尚未请求模型。'}
-    const checked=Date.parse(env.QUIZ_PRICE_CHECKED_ON||''),age=now()-checked
+    // Checked-on is audit metadata only; prices and durable budgets remain mandatory.
     if(!positive(env.QUIZ_APPROVED_CALLS)||positive(env.QUIZ_APPROVED_CALLS)>(cloud?1000000:100)||!Number.isInteger(Number(env.QUIZ_APPROVED_CALLS))||
       !positive(env.QUIZ_BUDGET_CNY)||positive(env.QUIZ_BUDGET_CNY)>10||
-      !positive(env.QUIZ_INPUT_CNY_PER_MILLION)||!positive(env.QUIZ_OUTPUT_CNY_PER_MILLION)||
-      !Number.isFinite(checked)||age< -86400000||age>7*86400000)return {enabled:false,notice:'需确认调用次数、金额上限和近期核对的模型价格；尚未请求模型。'}
+      !positive(env.QUIZ_INPUT_CNY_PER_MILLION)||!positive(env.QUIZ_OUTPUT_CNY_PER_MILLION))return {enabled:false,notice:'需确认调用次数、金额上限和与模型匹配的价格；尚未请求模型。'}
     if(storeError)return {enabled:false,notice:'本地预算存储不可用，已停止AI调用。'}
     return {enabled:true,notice:`仅本地${env.QUIZ_MAX_LEVEL==='1'?'AI知识挑战，本次只体验第一关':'三关AI知识挑战，每人每关一道题'}；受持久化次数和金额预算限制。`,maxLevel:env.QUIZ_MAX_LEVEL==='1'?1:3,approvedCalls:Number(env.QUIZ_APPROVED_CALLS)}
   }

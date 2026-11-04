@@ -22,6 +22,12 @@ function setup(overrides={}){
 }
 const operation=(party:any,id=1,kind='question',extra={})=>({partyId:party.partyId,levelId:'slime-forest',levelAttemptId:1,playerId:'player-1',operationId:id,kind,...extra})
 describe('Cloudflare handlers + actual SQLite transactions; provider simulated',()=>{
+ it.each(['2020-01-01', '', 'not-a-date', '2099-01-01'])('ignores audit date %s but still reserves durable budget',async date=>{
+  const s=setup({QUIZ_PRICE_CHECKED_ON:date});const p=await s.call('party',{players:2})
+  const q=await s.call('question',operation(p),p.token)
+  expect(q.source).toBe('ai');expect(s.provider).toHaveBeenCalledTimes(1)
+  expect(openBudgetStore(s.storage,{source:'a'.repeat(64),limits:{total:1000,daily:300,sourceDaily:60,sourceMinute:10}}).read().totalCalls).toBe(1)
+ })
  it.each(['correct','incorrect','uncertain'])('returns a structured question and %s judgment without exposing references',async verdict=>{
   const s=setup();const p=await s.call('party',{players:2});const q=await s.call('question',operation(p),p.token)
   expect(q.source).toBe('ai');expect(JSON.stringify(q)).not.toContain('隐藏');s.setVerdict(verdict)

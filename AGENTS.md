@@ -6,7 +6,7 @@
 
 密钥由负责人亲自在Cloudflare新Worker Secret填写，不读取原项目.env.local/Key/Token，不在聊天、日志、Git中显示。普通日志、缓存、DPAPI加密的本地运维凭据放在已忽略.local中，不上Git。
 
-Growth Lab AI只能绑定独立gymgogo-growth-lab-quiz-service，QUIZ_BUDGET必须是其独立SQLite命名空间；绝不能绑定原gymgogo-quiz-service或ANALYTICS_DB。真实AI开关必须同时满足近期价格核验、免费额度/用完即停人工确认与持久预算。不能默认沿用过去的额度余额。所有未经明确授权的真实调用保持关闭。
+Growth Lab AI只能绑定独立gymgogo-growth-lab-quiz-service，QUIZ_BUDGET必须是其独立SQLite命名空间；绝不能绑定原gymgogo-quiz-service或ANALYTICS_DB。真实AI开关必须同时满足有效的模型价格配置、免费额度/用完即停人工确认与持久预算（价格核验日期仅作记录，不自动过期）。不能默认沿用过去的额度余额。所有未经明确授权的真实调用保持关闭。
 
 本次V1恢复阶段最多2次真实qwen-flash请求（出题一次、判题一次），无自动重试；失败/超时仍占预算，不清账本。1000累计、300日、来源每日60次、每分钟10次限制必须保留。不得付费升级。
 
