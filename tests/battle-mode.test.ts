@@ -121,3 +121,10 @@ describe('shared immersive battle board', () => {
     expect(createImageBitmap).toHaveBeenLastCalledWith(video, { resizeWidth: 640, resizeHeight: 360 })
   })
 })
+
+it('solo action remains a single original control outside the long panel, without remounting video',async()=>{
+ render(createElement(App));const video=screen.getByLabelText('本地摄像头实时画面');const prepare=screen.getByRole('button',{name:'准备挑战'});expect(prepare.closest('.solo-action-dock')).toBeTruthy();expect(prepare.closest('.training-panel')).toBeNull();
+ fireEvent.click(prepare);expect(screen.getAllByRole('button',{name:'取消准备'})).toHaveLength(1);
+ await act(async()=>fireEvent.click(screen.getByRole('button',{name:'战斗大屏'})));expect(document.querySelector('.solo-action-dock')).toBeNull();expect(screen.getAllByRole('button',{name:'取消准备'})).toHaveLength(1);expect(screen.getByLabelText('本地摄像头实时画面')).toBe(video);
+ fireEvent.click(screen.getByRole('button',{name:'退出大屏'}));expect(screen.getByRole('button',{name:'取消准备'}).closest('.solo-action-dock')).toBeTruthy();expect(screen.getByLabelText('本地摄像头实时画面')).toBe(video);expect(getUserMedia).not.toHaveBeenCalled()
+})

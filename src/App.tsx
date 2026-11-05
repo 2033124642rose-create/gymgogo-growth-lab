@@ -249,8 +249,7 @@ export default function App({experienceV2=false}:{experienceV2?:boolean}={}) {
           <div className="stats"><div><span><Swords size={14}/>{mode==='real'?'有效次数':'模拟次数'}</span><strong>{count}<small> / {TARGET} 次</small></strong></div><div><span><Clock3 size={14}/>{mode==='real'?'本局用时':'模拟用时'}</span><strong>{formattedTime}</strong></div></div>
           <div className="target-row"><span><Flag size={15}/> 本关目标</span><strong>完成 {TARGET} 次深蹲</strong></div>
           <div className="progress-dots" aria-label={`完成 ${count} 次，共 ${TARGET} 次`}>{Array.from({length: TARGET}, (_, i) => <span key={i} className={i < count ? 'done' : ''}>{i < count ? <Check size={12}/> : ''}</span>)}</div>
-          {roundAction(actionButton)}
-          <div className="status-message" role="status" aria-live="polite">{roundMessage}</div>
+
           {phase === 'active' && <button className="reset-button" onClick={()=>reset()}><RotateCcw size={12}/>{mode==='real'?'重置本局':'重置演示'}</button>}
           {effectsEnabled && !audioReady && phase==='active' && <p className="audio-recovery">没有声音？点击“试听攻击音”启用；计数不受影响。</p>}
           <div className="privacy-note"><ShieldCheck size={16}/><p>你的动作，留在你的设备。<span>只在点击开启后采集；不上传、不录制视频。</span></p><LockKeyhole size={13}/></div>
@@ -266,6 +265,7 @@ export default function App({experienceV2=false}:{experienceV2?:boolean}={}) {
         </div>}
         {result&&<BattleResult key={result.roundId} result={result} onReplay={start} immersive={battleImmersive}/>}
       </div>
+      {!battleImmersive && <><div className="solo-action-spacer"/><div className="solo-action-dock" aria-label="单人挑战操作">{roundAction(actionButton)}<div className="status-message" role="status" aria-live="polite">{roundMessage}</div></div></>}
 
       </>}
       <ProductGuide/>

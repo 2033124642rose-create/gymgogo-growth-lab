@@ -139,3 +139,36 @@
   .battle-recognition strong { font-size:28px; }
   .battle-footer { padding:8px 15px; }
 }
+
+/* Shared UI fix after 17c1326: keep one solo action, outside the long camera panel. */
+.solo-action-dock { position:fixed; bottom:0; left:50%; transform:translateX(-50%); width:min(720px,calc(100% - 24px)); box-sizing:border-box; z-index:30; background:#20372bf5; border:1px solid #bad88a66; border-radius:16px; padding:10px 12px max(10px,env(safe-area-inset-bottom)); display:flex; align-items:center; gap:10px; box-shadow:0 -4px 20px #0004; }
+.solo-action-dock>.primary-button { flex:1; min-height:44px; }
+.solo-action-dock .status-message { flex:1; margin:0; font-size:12px; }
+.solo-action-spacer { height:145px; }
+@media(max-width:650px) { .solo-action-dock .status-message { display:none; } }
+/* Explicit camera space: mobile wrapped auxiliary controls must not collapse video to zero. */
+@media(max-width:650px),(max-height:500px) and (max-width:950px) {
+ .game-layout.is-battle-immersive { box-sizing:border-box; grid-template-columns:minmax(0,38fr) minmax(0,62fr); grid-template-rows:minmax(210px,1fr) minmax(100px,170px); padding:58px 8px max(8px,env(safe-area-inset-bottom)); gap:8px; overflow:auto; }
+ .is-battle-immersive>.training-panel { box-sizing:border-box; min-width:0; padding:6px; overflow:hidden; }
+ .is-battle-immersive .camera-camp.is-immersive { grid-template-rows:minmax(140px,1fr) minmax(44px,76px); gap:5px; }
+ .is-battle-immersive .camp-main-stage { min-height:140px; overflow:hidden; }
+ .is-battle-immersive .camp-session-tools { max-height:76px; overflow:auto; }
+ .is-battle-immersive .v2-privacy,.is-battle-immersive .v2-action-help,.is-battle-immersive .training-voice-status,.is-battle-immersive .training-screen-notes,.is-battle-immersive .joint-status { display:none; }
+ .is-battle-immersive .camera-controls { display:grid; grid-template-columns:1fr 1fr; gap:4px; }
+ .is-battle-immersive .camera-controls button { width:100%; min-width:0; min-height:36px; margin:0; padding:5px; font-size:11px; }
+ .is-battle-immersive .camp-section-heading { left:8px; right:8px; font-size:12px; }
+ .is-battle-immersive .camp-screen-actions { gap:4px; }
+ .is-battle-immersive .camp-screen-actions button { padding:5px; font-size:11px; }
+ .is-battle-immersive .real-label { display:none; }
+ .is-battle-immersive .battle-footer { min-height:0; overflow:auto; padding:8px; gap:6px; }
+ .is-battle-immersive .battle-counter>strong { font-size:42px; }
+ .is-battle-immersive .battle-counter small { display:none; }
+ .is-battle-immersive .battle-recognition strong { font-size:18px; }
+ .is-battle-immersive .battle-recognition p { display:block; font-size:10px; max-height:3.4em; overflow:auto; }
+ .is-battle-immersive .battle-game-controls .round-options,.is-battle-immersive .battle-game-controls>span,.is-battle-immersive .party-footer .party-sound { display:none; }
+ .is-battle-immersive .arena-title { margin:8px; }
+ .is-battle-immersive .arena-title h2 { font-size:14px; }
+ .is-battle-immersive .arena-title p,.is-battle-immersive .arena-bottom,.is-battle-immersive .party-level-path { display:none; }
+ .is-battle-immersive .monster-health { margin:0 8px; }
+ .is-battle-immersive .monster { width:100%; height:min(80%,230px); }
+}
