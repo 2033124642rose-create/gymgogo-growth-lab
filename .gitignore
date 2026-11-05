@@ -16,3 +16,13 @@ coverage/
 *.log
 .DS_Store
 Thumbs.db
+
+# Private user research, operating materials and local presentation drafts
+/docs/*测试记录表*.xlsx*
+/docs/*测试记录表*.csv
+/docs/*用户测试复盘报告.md
+/docs/*策略产品经理简历项目描述.md
+/docs/*展示ppt*.pptx
+/docs/演示视频.mp4
+/docs/code-wiki/
+*.inspect.ndjson

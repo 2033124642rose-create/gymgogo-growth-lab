@@ -3,9 +3,10 @@ const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}
 const ENTRIES={solo_prepare:'solo',solo_replay:'solo',party_hero:'party',party_header:'party',party_flow:'party',party_restore:'party'}
 export function validEvent(v,now=Date.now()){
  if(!v||typeof v!=='object'||Array.isArray(v)||Object.keys(v).length!==KEYS.length||Object.keys(v).some(k=>!KEYS.includes(k)))return false
- if(!uuid.test(v.event_id)||!uuid.test(v.session_id)||v.product_version!=='v1-analytics-1')return false
+ if(!uuid.test(v.event_id)||!uuid.test(v.session_id)||!['v1-analytics-1','v2-release-20261105'].includes(v.product_version))return false
  if(typeof v.event_time!=='string'||!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(v.event_time)||!Number.isFinite(Date.parse(v.event_time))||Math.abs(now-Date.parse(v.event_time))>600000)return false
  if(v.event_name==='page_view')return v.game_mode===null&&v.play_type===null&&v.entry_point==='home'
+ if(v.product_version==='v2-release-20261105'&&v.event_name==='start_click'&&v.game_mode===null&&v.play_type==='real'&&v.entry_point==='home')return true
  if(!['start_click','mode_select','game_start'].includes(v.event_name)||!['real','demo'].includes(v.play_type)||ENTRIES[v.entry_point]!==v.game_mode)return false
  if(v.game_mode==='party'&&v.play_type!=='real')return false
  if(v.event_name!=='game_start'&&['party_flow','party_restore'].includes(v.entry_point))return false

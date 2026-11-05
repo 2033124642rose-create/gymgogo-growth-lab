@@ -1,12 +1,20 @@
 /* Classic worker: MediaPipe's IIFE/WASM loader uses importScripts. Never sends frames over the network. */
 let landmarker
 let detectorBackend = 'CPU'
+let initializing = false
+let stage = 'script'
+const progress = value => { stage=value; self.postMessage({type:'progress',stage}) }
 
 self.onmessage = async ({ data }) => {
   if (data.type === 'init') {
+    if (initializing || landmarker) return
+    initializing = true
     try {
+      progress('script')
       importScripts('/mediapipe/vision_bundle.js')
+      progress('wasm')
       const fileset = await Vision.FilesetResolver.forVisionTasks('/mediapipe/wasm')
+      progress('model')
       const options = {
         baseOptions: { modelAssetPath: '/models/pose_landmarker_lite.task', delegate: 'GPU' },
         canvas: new OffscreenCanvas(1, 1),
@@ -18,6 +26,7 @@ self.onmessage = async ({ data }) => {
         landmarker = await Vision.PoseLandmarker.createFromOptions(fileset, options)
         detectorBackend = 'GPU'
       } catch {
+        progress('cpu')
         // A separate canvas avoids reusing a failed GPU context.
         landmarker = await Vision.PoseLandmarker.createFromOptions(fileset, {
           ...options, canvas: new OffscreenCanvas(1, 1),
@@ -27,7 +36,10 @@ self.onmessage = async ({ data }) => {
       self.postMessage({ type: 'ready', backend: detectorBackend })
     } catch {
       landmarker?.close()
-      self.postMessage({ type: 'error', code: 'model' })
+      landmarker = undefined
+      self.postMessage({ type: 'error', code: 'model', stage })
+    } finally {
+      initializing = false
     }
   } else if (data.type === 'frame') {
     const frame = data.frame

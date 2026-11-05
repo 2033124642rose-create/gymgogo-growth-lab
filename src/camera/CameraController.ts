@@ -2,8 +2,8 @@ import { assessPose, drawPose, EMPTY_GROUPS } from './pose'
 import type { JointGroups, Point, PoseFrame, Tracking } from './pose'
 
 export type Phase = 'idle' | 'requesting' | 'loading' | 'running' | 'error'
-export interface CameraState { phase: Phase; tracking: Tracking; groups: JointGroups; message: string; backend?: string }
-interface WorkerReply { type: 'ready' | 'result' | 'error'; landmarks?: Point[]; worldLandmarks?: Point[]; timestamp?: number; inferenceMs?: number; backend?: string; code?: string }
+export interface CameraState { phase: Phase; tracking: Tracking; groups: JointGroups; message: string; preview?: boolean; facing?: string; backend?: string }
+interface WorkerReply { type: 'ready' | 'result' | 'error' | 'progress'; landmarks?: Point[]; worldLandmarks?: Point[]; timestamp?: number; inferenceMs?: number; backend?: string; code?: string; stage?: string }
 export interface PoseWorker {
   onmessage: ((event: MessageEvent<WorkerReply>) => void) | null
   onerror: ((event: ErrorEvent) => void) | null
@@ -11,7 +11,7 @@ export interface PoseWorker {
   terminate(): void
 }
 export interface CameraEnvironment {
-  getMedia(): Promise<MediaStream>
+  getMedia(facing?: 'user' | 'environment'): Promise<MediaStream>
   createWorker(): PoseWorker
   getFrame(video: HTMLVideoElement): Promise<ImageBitmap>
   schedule(callback: FrameRequestCallback): number
@@ -19,16 +19,18 @@ export interface CameraEnvironment {
   now(): number
 }
 const environment: CameraEnvironment = {
-  getMedia: () => {
-    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia ||
-      typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined' || typeof createImageBitmap === 'undefined') {
+  getMedia: (facing = 'user') => {
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
       return Promise.reject(new Error('unsupported'))
     }
     return navigator.mediaDevices.getUserMedia({ audio: false, video: {
-      facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30, max: 30 },
+      facingMode: { ideal: facing }, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30, max: 30 },
     } })
   },
-  createWorker: () => new Worker('/pose-worker.js') as PoseWorker,
+  createWorker: () => {
+    if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined' || typeof createImageBitmap === 'undefined') throw new Error('unsupported-model')
+    return new Worker('/pose-worker.js') as PoseWorker
+  },
   getFrame: video => {
     const width = Math.min(640, video.videoWidth)
     return createImageBitmap(video, { resizeWidth: width, resizeHeight: Math.round(video.videoHeight * width / video.videoWidth) })
@@ -46,6 +48,8 @@ export function cameraError(error: unknown): string {
   if (error instanceof Error && error.message === 'unsupported') return '此环境不支持摄像头或后台识别。请使用新版 Chrome / Edge，通过 localhost 或 HTTPS 打开页面。'
   return '摄像头启动失败，请检查设备连接、系统权限后重试。'
 }
+
+const MODEL_STAGES: Record<string,string> = { script:'正在加载识别程序', wasm:'正在准备 WASM 运行环境', model:'正在下载并初始化姿态模型（首次可能较慢）', cpu:'正在使用 CPU 兼容模式初始化' }
 
 const initialState = (): CameraState => ({ phase: 'idle', tracking: 'waiting', groups: { ...EMPTY_GROUPS }, message: '' })
 
@@ -93,28 +97,69 @@ export class CameraController {
     this.onState(this.state)
   }
 
-  async start() {
+  async start(facing: 'user' | 'environment' = 'user') {
     if (['requesting', 'loading', 'running'].includes(this.state.phase)) return
     this.stop(false)
     const generation = this.generation
     this.update({ ...initialState(), phase: 'requesting', message: '请在浏览器提示中允许摄像头。也可以随时取消。' })
     try {
-      const stream = await this.env.getMedia()
+      const stream = await this.env.getMedia(facing)
       if (generation !== this.generation) { stream.getTracks().forEach(track => track.stop()); return }
       this.stream = stream
       stream.getVideoTracks().forEach(track => track.addEventListener('ended', this.ended))
+      this.video.muted = true
+      this.video.playsInline = true
+      this.video.autoplay = true
       this.video.srcObject = stream
+      this.update({ preview: true, facing: stream.getVideoTracks()[0]?.getSettings?.().facingMode || facing })
       this.watchdog = setTimeout(() => this.fail('视频启动超时，请检查摄像头后重试。'), 15_000)
-      await this.video.play()
+      try { await this.video.play() }
+      catch {
+        if(generation===this.generation) this.modelFailed('摄像头已连接，但视频未能播放。请点击恢复视频画面；仍失败请手动关闭后重试。')
+        return
+      }
       if (generation !== this.generation) return
       clearTimeout(this.watchdog)
+      this.loadModel(generation)
+    } catch (error) {
+      if (generation === this.generation) this.fail(cameraError(error))
+    }
+  }
+
+
+  async resumePreview() {
+    if (!this.stream || !this.video.paused) return
+    const generation=this.generation
+    try { await this.video.play() }
+    catch { if(generation===this.generation) this.modelFailed('视频播放被浏览器暂停，请点击恢复视频画面；若仍无画面，请关闭后手动重开摄像头。') }
+  }
+  retryModel() {
+    if (!this.stream || !this.state.preview || this.state.phase !== 'error') return
+    this.loadModel(this.generation)
+  }
+  private modelFailed(message: string) {
+    this.generation++
+    this.env.cancel(this.animation)
+    this.canvas.getContext('2d')?.clearRect(0,0,this.canvas.width,this.canvas.height)
+    clearTimeout(this.watchdog)
+    if(this.worker) { this.worker.onmessage=null; this.worker.terminate() }; this.worker = null
+    this.inFlight = false
+    this.onPose?.(null)
+    this.update({phase:'error', preview:true, tracking:'waiting', groups:{...EMPTY_GROUPS}, message})
+  }
+  private loadModel(generation: number) {
+    try {
       this.update({ phase: 'loading', message: '画面已开启，正在加载本地姿态模型；首次可能需要数秒。' })
       const worker = this.env.createWorker()
       this.worker = worker
-      this.watchdog = setTimeout(() => this.fail('姿态模型加载超时，摄像头已关闭。请刷新页面后重试。'), 45_000)
-      worker.onerror = event => { event.preventDefault?.(); if (generation === this.generation) this.fail('姿态识别线程启动失败，摄像头已关闭。请使用新版 Chrome / Edge 后重试。') }
+      this.watchdog = setTimeout(() => this.modelFailed('姿态模型加载超时。画面保留，请检查网络后点击重试识别。'), 45_000)
+      worker.onerror = event => { event.preventDefault?.(); if (generation === this.generation) this.modelFailed('姿态识别线程启动失败。画面保留，请使用新版 Safari / Chrome / Edge 后重试识别。') }
       worker.onmessage = ({ data }) => {
         if (generation !== this.generation) return
+        if (data.type === 'progress') {
+          this.update({message: MODEL_STAGES[data.stage ?? ''] || '正在初始化姿态识别…'})
+          return
+        }
         clearTimeout(this.watchdog)
         if (data.type === 'ready') {
           this.update({ phase: 'running', tracking: 'waiting', message: '', backend: data.backend })
@@ -136,14 +181,11 @@ export class CameraController {
             this.update({ tracking: assessment.tracking, groups: assessment.groups })
           }
         } else {
-          this.fail(data.code === 'model' ? '姿态模型加载失败，摄像头已关闭。请刷新页面后重试；仍失败可检查模型资源或更换浏览器。' :
-            '姿态识别发生错误，摄像头已关闭。请重试或更换新版 Chrome / Edge。')
+          data.code === 'model' ? this.modelFailed(`姿态模型加载失败（${MODEL_STAGES[data.stage ?? ''] || '初始化阶段'}）。请检查网络并重试识别。`) : this.fail('姿态识别发生错误，摄像头已关闭。请重试或更换新版 Chrome / Edge。')
         }
       }
       worker.postMessage({ type: 'init' })
-    } catch (error) {
-      if (generation === this.generation) this.fail(cameraError(error))
-    }
+    } catch (error) { this.modelFailed(error instanceof Error && error.message==='unsupported-model' ? '视频已开启，但此浏览器不支持后台姿态识别。请更新 iOS / Safari 或 Chrome；仅预览不能计数。' : '姿态识别线程初始化失败。请更新浏览器后重试识别。') }
   }
 
   private tick(generation: number) {

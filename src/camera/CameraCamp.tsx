@@ -29,7 +29,7 @@ interface CameraCampProps {
 }
 
 const TRACKING_TEXT = {
-  waiting: ['等待用户入镜', '向后站一点，让肩膀、髋部、膝盖和脚踝都进入画面。'],
+  waiting: ['请调整站位，让全身进入画面', '向后站一点，让肩膀、髋部、膝盖和脚踝都进入画面。'],
   tracked: ['识别成功', '肩、髋、膝、踝已进入画面。骨骼跟随动作，不进行深蹲计数。'],
   partial: ['人体超出画面或关节点不清晰', '请让全身入镜，改善光线并减少遮挡；当前不判定动作。'],
   lost: ['人体超出画面', '暂未检测到人体，请回到镜头前；遮挡或光线不足也可能导致丢失。'],
@@ -62,6 +62,8 @@ export default function CameraCamp({ screenRoot, onImmersiveChange, onRecognitio
   const canvas = useRef<HTMLCanvasElement>(null)
   const hatLayer = useRef<HatOverlayHandle>(null)
   const controller = useRef<CameraController | null>(null)
+  const facing = useRef<'user'|'environment'>('user')
+  const [canSwitch,setCanSwitch] = useState(false)
   const [ratio, setRatio] = useState(4 / 3)
   const [state, setState] = useState<CameraState>({ phase: 'idle', tracking: 'waiting', groups: { ...EMPTY_GROUPS }, message: '' })
   const screenElement = () => screenRoot?.current ?? root.current
@@ -162,8 +164,11 @@ export default function CameraCamp({ screenRoot, onImmersiveChange, onRecognitio
     if(inferencePaused){announcer.current?.update(null);player.current?.silence();hatLayer.current?.update(null,0,0)}
   },[inferencePaused])
   useEffect(() => {
+    let checkedDevices=false
     const session = new CameraController(video.current!, canvas.current!, next => {
       setState(next)
+      if(next.phase==='idle') checkedDevices=false
+      if(next.preview && !checkedDevices && navigator.mediaDevices?.enumerateDevices) { checkedDevices=true; void navigator.mediaDevices.enumerateDevices().then(devices=>setCanSwitch(devices.filter(d=>d.kind==='videoinput').length>1)).catch(()=>{}) }
       if (next.phase === 'idle' || next.phase === 'error') setRatio(4 / 3)
     }, undefined, frame => {
       if (pausedRef.current) return
@@ -175,11 +180,13 @@ export default function CameraCamp({ screenRoot, onImmersiveChange, onRecognitio
     session.setInferencePaused(pausedRef.current)
     const leave = () => session.stop()
     window.addEventListener('pagehide', leave)
-    return () => { window.removeEventListener('pagehide', leave); session.stop(false); controller.current = null }
+    const resume=()=>{if(document.visibilityState==='visible')void session.resumePreview()}
+    document.addEventListener('visibilitychange',resume)
+    return () => { window.removeEventListener('pagehide', leave); document.removeEventListener('visibilitychange',resume); session.stop(false); controller.current = null }
   }, [])
   const busy = state.phase === 'requesting' || state.phase === 'loading'
-  const live = state.phase === 'loading' || state.phase === 'running'
-  const active = busy || state.phase === 'running'
+  const live = !!state.preview || state.phase === 'loading' || state.phase === 'running'
+  const active = live || busy || state.phase === 'running'
   const [title, originalHint] = inferencePaused ? ['观测营地待机','知识挑战期间暂停姿态识别与动作语音，摄像头设备不重新申请权限。'] : state.phase === 'running' ? TRACKING_TEXT[state.tracking] :
     state.phase === 'requesting' ? ['等待摄像头授权', state.message] :
     state.phase === 'loading' ? ['正在加载姿态模型', state.message] :
@@ -211,16 +218,16 @@ export default function CameraCamp({ screenRoot, onImmersiveChange, onRecognitio
       </div>
     </div>
     <div ref={stage} className="camp-main-stage">
-    <div className={`camp-camera-view ${live ? 'is-live' : ''}`} style={{ aspectRatio: ratio,
+    <div className={`camp-camera-view ${live ? 'is-live' : ''} ${state.facing==='environment'?'is-rear':''}`} style={{ aspectRatio: ratio,
       ...(immersive && fit.width > 0 ? { width: fit.width, height: fit.height } : {}) }}>
-      <video ref={video} muted playsInline className="camp-video" aria-label="本地摄像头实时画面"
+      <video ref={video} autoPlay muted playsInline className="camp-video" aria-label="本地摄像头实时画面"
         onLoadedMetadata={() => { if (video.current?.videoHeight) setRatio(video.current.videoWidth / video.current.videoHeight) }}
         onResize={() => { if (video.current?.videoHeight) setRatio(video.current.videoWidth / video.current.videoHeight) }}/>
       <canvas ref={canvas} className="camp-skeleton" aria-label="人体骨骼关键点叠加层"/>
       {hat && <HatOverlay ref={hatLayer} hat={hat.id} playerId={hat.playerId}/>}
-      <span className={`camp-video-label ${live ? 'live' : ''}`}><i/>{live ? '本地画面 · 镜像显示' : '观测未开启'}</span>
+      <span className={`camp-video-label ${live ? 'live' : ''}`}><i/>{live ? (state.facing==='environment'?'本地画面 · 后置摄像头':'本地画面 · 镜像显示') : '观测未开启'}</span>
       {!live && <div className="camp-camera-empty"><span className="camp-camera-emblem"><Camera size={30}/></span><strong>营地观测区</strong><span>整装待发，让身体成为冒险的主角。</span><small>画面不上传 · 不录制 · 不保存</small></div>}
-      {state.phase === 'loading' && <div className="camp-loading"><LoaderCircle size={17}/> 正在准备骨骼识别…</div>}
+      {state.phase === 'loading' && <div className="camp-loading"><LoaderCircle size={17}/> {state.message}</div>}
       {inferencePaused&&<div className="camp-standby" role="status"><Leaf size={32}/><strong>观测营地待机</strong><span>专心答题 · 姿态识别与动作提示已暂停</span><small>设备连接保留，画面不上传</small></div>}
     </div>
     </div>
@@ -234,8 +241,11 @@ export default function CameraCamp({ screenRoot, onImmersiveChange, onRecognitio
     {v2 && <div className="v2-privacy">摄像头画面仅用于本地动作识别，不会上传视频或图像。匿名行为统计仍可在页面下方退出。</div>}
     {v2 && !inferencePaused && <p className="v2-action-help" role="status">{state.phase!=='running'?'先开启摄像头，再走远站稳。':state.tracking!=='tracked'?'未检测到完整人体：请稍微站远一点，让肩膀和双脚入镜；也可调整光线或镜头角度。':'已识别人体：倒计时结束后，下蹲 → 起立才加 1；已识别下蹲时请起立，留意战斗区动作反馈。'}</p>}
     <div className="camera-controls">
-      {!active ? <button className="camera-toggle" onClick={() => { if (soundEnabledRef.current) void player.current?.unlock(); void controller.current?.start() }}><Camera size={17}/>{state.phase === 'error' ? '重试开启摄像头' : '开启摄像头'}</button> :
+      {!active ? <button className="camera-toggle" onClick={() => { if (soundEnabledRef.current) void player.current?.unlock(); void controller.current?.start(facing.current) }}><Camera size={17}/>{state.phase === 'error' ? '重试开启摄像头' : '开启摄像头'}</button> :
         <button className="camera-stop" onClick={() => controller.current?.stop()}>{busy ? <X size={17}/> : <CameraOff size={17}/>} {busy ? '取消并关闭摄像头' : '关闭摄像头'}</button>}
+      {state.phase==='error' && state.preview && <button className="training-sound-test" onClick={()=>controller.current?.retryModel()}>重试识别（保留画面）</button>}
+      {live && <button className="training-sound-test" onClick={()=>void controller.current?.resumePreview()}>恢复视频画面</button>}
+      {canSwitch && live && !busy && !inferencePaused && <button className="training-sound-test" onClick={()=>{facing.current=facing.current==='user'?'environment':'user';controller.current?.stop();void controller.current?.start(facing.current)}}>切换前后摄像头</button>}
       <>
         <button className="training-sound-button" aria-pressed={soundEnabled} onClick={() => {
           const enabled = !soundEnabled; soundEnabledRef.current = enabled; setSoundEnabled(enabled);onVoiceEnabledChange?.(enabled)

@@ -49,3 +49,23 @@ describe('camera UI boundary', () => {
     expect(screen.getByText('摄像头已关闭')).toBeTruthy()
   })
 })
+
+it('keeps a mobile video preview when inference APIs are unavailable',async()=>{
+ vi.stubGlobal('OffscreenCanvas',undefined)
+ const track=Object.assign(new EventTarget(),{stop:vi.fn()})
+ const getUserMedia=vi.fn().mockResolvedValue({getTracks:()=>[track],getVideoTracks:()=>[track]})
+ Object.defineProperty(navigator,'mediaDevices',{value:{getUserMedia},configurable:true})
+ render(createElement(CameraCamp));fireEvent.click(screen.getByRole('button',{name:'开启摄像头'}))
+ await waitFor(()=>expect(screen.getByRole('alert').textContent).toContain('不支持后台姿态识别'))
+ expect(document.querySelector('.camp-camera-view')?.classList.contains('is-live')).toBe(true)
+ expect(track.stop).not.toHaveBeenCalled();expect(getUserMedia).toHaveBeenCalledTimes(1)
+ expect(screen.getByRole('button',{name:'重试识别（保留画面）'})).toBeTruthy()
+})
+it('uses inline muted autoplay video and offers explicit switching only for multiple cameras',async()=>{
+ const track=Object.assign(new EventTarget(),{stop:vi.fn()})
+ Object.defineProperty(navigator,'mediaDevices',{value:{getUserMedia:vi.fn().mockResolvedValue({getTracks:()=>[track],getVideoTracks:()=>[track]}),enumerateDevices:async()=>[{kind:'videoinput'},{kind:'videoinput'}]},configurable:true})
+ render(createElement(CameraCamp));const video=document.querySelector('video')!;expect(video.autoplay).toBe(true);expect(video.playsInline).toBe(true)
+ fireEvent.click(screen.getByRole('button',{name:'开启摄像头'}));await screen.findByText('正在加载姿态模型')
+ // Switching stays unavailable while a model initialization is pending.
+ expect(screen.queryByRole('button',{name:'切换前后摄像头'})).toBeNull()
+})

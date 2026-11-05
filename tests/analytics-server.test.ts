@@ -37,3 +37,14 @@ it('uses real local D1 for writes, deduplication, atomic limits and SQL funnel',
  expect(await db.prepare(sql).first()).toMatchObject({home_sessions:1,start_sessions:1,click_start_sessions:0})
  }finally{await mf.dispose()}
 },20000)
+
+it('stable V2 SQL and private dashboard count generic CTA then selected mode, not QA',async()=>{
+ const {statsSQL}=await import('../functions/_lib/admin-stats.js')
+ const mf=new Miniflare(convertV4MiniflareOptions({workers:[{name:'release-v2-local',modules:true,script:'export default {fetch(){return new Response("local")}}',compatibilityDate:'2026-10-30',d1Databases:{ANALYTICS_DB:'release-v2-local'}}]}))
+ try{const db=await mf.getD1Database('ANALYTICS_DB');for(const q of readFileSync('migrations/0001_analytics.sql','utf8').replace(/^\uFEFF/,'').split(';').filter(x=>x.trim()))await db.prepare(q).run()
+ const sid=crypto.randomUUID(),time=Date.now()-10000;let i=0
+ for(const [name,mode,point] of [['page_view',null,'home'],['start_click',null,'home'],['mode_select','solo','solo_prepare'],['game_start','solo','solo_prepare']]){const e=make({session_id:sid,event_name:name,game_mode:mode,entry_point:point,play_type:name==='page_view'?null:'real',product_version:'v2-release-20261105',event_time:new Date(time+i++*100).toISOString()});expect(validEvent(e)).toBe(true);await db.prepare('INSERT INTO analytics_events VALUES(?,?,?,?,?,?,?,?,?)').bind(e.event_id,e.session_id,e.event_name,e.event_time,e.entry_point,e.play_type,e.game_mode,e.product_version,new Date().toISOString()).run()}
+ const row=await db.prepare(readFileSync('sql/funnel-v2.sql','utf8')).first();expect(row).toMatchObject({home_sessions:1,click_sessions:1,start_sessions:1,click_start_sessions:1,solo_path_sessions:1})
+ const stats=await db.prepare(statsSQL).bind(new Date().toISOString(),new Date(time-1000).toISOString(),new Date(time+20000).toISOString()).first();expect(stats).toMatchObject({home_sessions:1,click_sessions:1,start_sessions:1,solo_clicks:1,solo_starts:1})
+ }finally{await mf.dispose()}
+},20000)

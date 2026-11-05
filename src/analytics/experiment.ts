@@ -5,6 +5,7 @@ export function assignment():Assignment|null {
  if(cached!==undefined)return cached
  cached=null
  if(import.meta.env.VITE_AB_ENABLED!=='true')return null
+ if(location.hostname==='gymgogo-growth-lab.pages.dev'&&!['v1','v2'].includes(new URLSearchParams(location.search).get('experience')||''))return null
  try{
  const key='growth.experiment.visitor.v1';let id=localStorage.getItem(key)
  if(!id||! /^[0-9a-f-]{36}$/.test(id)){id=crypto.randomUUID();localStorage.setItem(key,id)}

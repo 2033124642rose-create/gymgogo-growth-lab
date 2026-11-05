@@ -67,12 +67,13 @@ describe('camera session ownership and privacy cleanup', () => {
     expect(controller.state.message).toBe(cameraError(error))
     expect(env.createWorker).not.toHaveBeenCalled()
   })
-  it('stops camera if model initialization fails', async () => {
+  it('keeps preview if model initialization fails', async () => {
     const { controller, reply, track, worker } = setup()
     await controller.start()
     reply({ type: 'error', code: 'model' })
     expect(controller.state.message).toContain('模型加载失败')
-    expect(track.stop).toHaveBeenCalledTimes(1)
+    expect(track.stop).not.toHaveBeenCalled()
+    expect(controller.state.preview).toBe(true)
     expect(worker.terminate).toHaveBeenCalledTimes(1)
   })
   it('ignores stale worker replies after the user closes the camera', async () => {
@@ -97,7 +98,8 @@ describe('camera session ownership and privacy cleanup', () => {
     await controller.start()
     vi.advanceTimersByTime(45_000)
     expect(controller.state.message).toContain('加载超时')
-    expect(track.stop).toHaveBeenCalledTimes(1)
+    expect(track.stop).not.toHaveBeenCalled()
+    expect(controller.state.preview).toBe(true)
   })
   it('handles device disconnection as an error and releases the worker', async () => {
     const { controller, reply, track, worker } = setup()
@@ -160,3 +162,18 @@ describe('inference standby without reacquiring camera',()=>{
   expect(s.bitmap.close).toHaveBeenCalled();expect(vi.mocked(s.worker.postMessage).mock.calls.some(c=>(c[0] as {type:string}).type==='frame')).toBe(false);s.controller.stop();
  });
 });
+
+describe('mobile preview and model retry isolation',()=>{
+ it('sets mobile playback properties before play',async()=>{
+  const {controller,video}=setup();await controller.start();expect(video.muted).toBe(true);expect(video.playsInline).toBe(true);expect(video.autoplay).toBe(true);controller.stop()
+ })
+ it('retries only model after failure without acquiring camera again',async()=>{
+  const {controller,env,reply}=setup();await controller.start();reply({type:'error',code:'model'});controller.retryModel();controller.retryModel();expect(env.getMedia).toHaveBeenCalledTimes(1);expect(env.createWorker).toHaveBeenCalledTimes(2);controller.stop()
+ })
+ it('progress messages do not cancel the overall model timeout',async()=>{
+  vi.useFakeTimers();const {controller,reply}=setup();await controller.start();reply({type:'progress',stage:'cpu'});expect(controller.state.message).toContain('CPU');vi.advanceTimersByTime(45000);expect(controller.state.message).toContain('加载超时');controller.stop()
+ })
+ it('requests the selected camera only after explicit restart',async()=>{
+  const {controller,env}=setup();await controller.start('user');controller.stop();await controller.start('environment');expect(env.getMedia).toHaveBeenNthCalledWith(1,'user');expect(env.getMedia).toHaveBeenNthCalledWith(2,'environment');controller.stop()
+ })
+})

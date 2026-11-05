@@ -123,3 +123,11 @@
 .quiz-bingo{position:fixed;inset:0;z-index:120;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;background:#163323ef;color:#d8ff96}.quiz-bingo strong{font-size:clamp(72px,12vw,150px);animation:bingo-pop .45s ease-out}.quiz-bingo span{font-size:clamp(20px,3vw,36px)}@keyframes bingo-pop{from{transform:scale(.5);opacity:0}to{transform:scale(1);opacity:1}}@media(prefers-reduced-motion:reduce){.quiz-bingo strong{animation:none}}
 
 .voice-studio fieldset{display:grid;gap:10px;border:1px solid #bacd8055;border-radius:16px;padding:16px;margin:16px 0}.voice-studio label{display:grid;gap:7px}.voice-studio select{max-width:100%;background:#193b2b;color:#ecf7da;padding:10px;border-radius:10px}.voice-studio input[type=range]{width:100%;accent-color:#b8ef63}.voice-studio small{color:#c8dbad}.voice-studio-entry{display:block;margin:12px auto;padding:12px 18px;border-radius:14px;background:#314f31;color:#eff7d9;border:1px solid #bfd792;font:inherit;cursor:pointer}
+
+/* Shared V1/V2 dock: same handlers, no duplicate preparation controls. */
+.party-action-dock { position:fixed; bottom:0; left:50%; transform:translateX(-50%); width:min(1100px,calc(100% - 24px)); box-sizing:border-box; z-index:30; padding:10px 14px max(10px,env(safe-area-inset-bottom)); background:#20372bf5; border:1px solid #bad88a66; border-radius:16px; margin:12px 0; box-shadow:0 -4px 20px #0004; }
+.party-action-dock .party-actions { justify-content:center; }
+.party-action-dock .party-actions .primary-button { flex-basis:auto; min-width:180px; }
+@media(max-width:650px) { .party-action-dock { padding:8px 10px max(8px,env(safe-area-inset-bottom)); } .party-action-dock .party-actions { gap:6px; } .party-action-dock .party-actions button { min-height:44px; padding:8px 10px; } .party-action-dock .party-actions p { display:none; } }
+
+.party-shell { padding-bottom:200px; }
