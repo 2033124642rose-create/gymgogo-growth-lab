@@ -1,3 +1,5 @@
+import ForestPartner from './game/ForestPartner'
+import { PartnerBattle, soloHealth, type PartnerState } from './game/PartnerBattle'
 import StartGuide,{guideSeen,GUIDE_KEY} from './v2/StartGuide'
 import {entry,gameStarted,experimentEvent} from './analytics/client'
 import {useAnalyticsHome,useAnalyticsActive} from './analytics/Analytics'
@@ -46,7 +48,7 @@ export default function App({experienceV2=false}:{experienceV2?:boolean}={}) {
   const effectsEnabledRef = useRef(true)
   const [audioReady, setAudioReady] = useState(false)
   const [phase, setPhase] = useState<'idle' | 'active' | 'won'>('idle')
-  useAnalyticsHome(!partyMode)
+  useAnalyticsHome(!partyMode&&!soloSelected)
   useAnalyticsActive(!partyMode&&phase==='active'&&mode==='real')
   const [count, setCount] = useState(0)
   const [seconds, setSeconds] = useState(0)
@@ -61,28 +63,94 @@ export default function App({experienceV2=false}:{experienceV2?:boolean}={}) {
   const actionButton = useRef<HTMLButtonElement>(null)
   const closeButton = useRef<HTMLButtonElement>(null)
   const helpButton = useRef<HTMLButtonElement>(null)
-  const hp = Math.max(0, 100 - count * 10)
+  const companion = useRef(new PartnerBattle())
+  const paused = useRef(false)
+  const lastPoseAt = useRef(-Infinity)
+  const pausedAt = useRef<number | null>(null)
+  const [soloPaused, setSoloPaused] = useState(false)
+  const [partnerView, setPartnerView] = useState({ state:'idle' as PartnerState, sequence:0, damage:0 })
+  const partnerUntil = useRef(0)
+  const hp = soloHealth(count, TARGET, companion.current.damage)
+
+  const showPartner = useCallback((state: PartnerState, damage = 0) => {
+    partnerUntil.current = performance.now() + 650
+    setPartnerView(previous => ({ state, damage, sequence:previous.sequence + 1 }))
+  }, [])
+
+  function resetPartner() {
+    companion.current = new PartnerBattle()
+    paused.current = false
+    lastPoseAt.current = -Infinity
+    pausedAt.current = null
+    setSoloPaused(false)
+    showPartner('idle')
+  }
+
+  function toggleSoloPause() {
+    paused.current = !paused.current
+    setSoloPaused(paused.current)
+    if (paused.current) {
+      pausedAt.current = Date.now()
+      companion.current.pause(performance.now())
+      setSquat(counter.current.interrupt())
+      showPartner('idle')
+    } else if (pausedAt.current !== null) {
+      startTime.current += Date.now() - pausedAt.current
+      pausedAt.current = null
+    }
+  }
+
+  useEffect(() => {
+    if (phase !== 'active' || mode !== 'real' || partyMode) return
+    const roundId = session.current.id
+    const tick = () => {
+      const round = session.current
+      if (!round.active || round.id !== roundId) return
+      const now = performance.now()
+      if (document.hidden || paused.current || now - lastPoseAt.current > 700) {
+        companion.current.pause(now)
+        return
+      }
+      companion.current.resume(now)
+      const damage = companion.current.assist(now, soloHealth(round.count, TARGET, companion.current.damage))
+      if (damage) showPartner('attack', damage)
+      else if (now >= partnerUntil.current) setPartnerView(previous => previous.state === 'idle' ? previous : { ...previous, state:'idle', damage:0 })
+    }
+    const timer = setInterval(tick, 40)
+    document.addEventListener('visibilitychange', tick)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', tick)
+    }
+  }, [phase, mode, partyMode, showPartner])
   const formattedTime = `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`
 
   useEffect(()=>{const audio=new BattleAudio();battleAudio.current=audio;return()=>{session.current.active=false;session.current.id++;audio.dispose();battleAudio.current=null}},[])
   const commitAttack = useCallback((source: 'real'|'demo', repNumber?: number) => {
     const round=session.current
-    if(!round.active || round.mode!==source || round.count>=TARGET) return
+    if(!round.active || paused.current || round.mode!==source || round.count>=TARGET) return
     if(source==='real' && repNumber!==round.count+1) return
     const next=++round.count
+    if (source === 'real' && next < TARGET) {
+      const partner = companion.current
+      const damage = partner.rep(performance.now(), soloHealth(next, TARGET, partner.damage))
+      showPartner(partner.energy === 0 ? 'combo' : 'cheer', damage)
+    }
     setCount(next);setHit(true)
     if(timer.current)clearTimeout(timer.current)
     timer.current=setTimeout(()=>setHit(false),450)
     if(effectsEnabledRef.current && battleAudio.current) setAudioReady(battleAudio.current.strike())
     if(next===TARGET){
       round.active=false
+      companion.current.pause(performance.now())
+      if (source === 'real') showPartner('victory')
       readyGate.current.stop('ended');syncReady()
       const duration=Math.max(0,Math.floor((Date.now()-startTime.current)/1000))
       setSeconds(duration);setPhase('won')
       setResult({roundId:crypto.randomUUID(),count:next,seconds:duration,mode:source,defeated:true})
       if(effectsEnabledRef.current)battleAudio.current?.victory()
     }
-  },[syncReady])
+  },[syncReady,showPartner])
   const handlePoseFrame = useCallback((frame: PoseFrame | null) => {
     const round=session.current
     if(round.mode==='real' && (readyGate.current.phase==='waiting'||readyGate.current.phase==='countdown')) {
@@ -107,6 +175,9 @@ export default function App({experienceV2=false}:{experienceV2?:boolean}={}) {
     }
     if(!round.active || round.mode!=='real')return
     if(frame && frame.timestamp<round.startedAt)return
+    lastPoseAt.current = frame ? performance.now() : -Infinity
+    if (!frame) companion.current.pause(performance.now())
+    if (paused.current || document.hidden) return
     const result=frame ? counter.current.update(frame) : counter.current.interrupt()
     setSquat(previous=>previous.phase===result.phase && previous.count===result.count && previous.message===result.message && !result.rep ? previous : result)
     if(result.rep)commitAttack('real',result.count)
@@ -124,10 +195,10 @@ export default function App({experienceV2=false}:{experienceV2?:boolean}={}) {
   },[syncReady])
 
   useEffect(() => {
-    if (phase !== 'active') return
+    if (phase !== 'active' || soloPaused) return
     const interval = setInterval(() => setSeconds(Math.floor((Date.now() - startTime.current) / 1000)), 250)
     return () => clearInterval(interval)
-  }, [phase])
+  }, [phase, soloPaused])
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
   useEffect(() => {
     if (!help) return
@@ -144,6 +215,7 @@ export default function App({experienceV2=false}:{experienceV2?:boolean}={}) {
     if(readyGate.current.phase==='waiting'||readyGate.current.phase==='countdown')return
     entry('solo',phase==='won'?'solo_replay':'solo_prepare',mode)
     const id=session.current.id+1
+    resetPartner()
     setResult(null)
     session.current={id,active:mode==='demo',mode,count:0,startedAt:performance.now()}
     if(mode==='real')readyGate.current.prepare()
@@ -159,6 +231,7 @@ export default function App({experienceV2=false}:{experienceV2?:boolean}={}) {
     requestAnimationFrame(() => (battleImmersive ? battleActionButton : actionButton).current?.focus())
   }
   function reset(nextMode = mode) {
+    resetPartner()
     setResult(null)
     readyGate.current.stop();syncReady()
     session.current={id:session.current.id+1,active:false,mode:nextMode,count:0,startedAt:performance.now()}
@@ -176,7 +249,7 @@ export default function App({experienceV2=false}:{experienceV2?:boolean}={}) {
   const readyMessage=ready.phase==='countdown'?`保持入镜，倒计时结束后开始深蹲。${ready.reason.startsWith('短暂')?'识别波动，倒计时暂停。':''}`:
     ready.framingIssue?`${ready.reason}。${ready.guidance}`:`识别确认 ${(ready.stableMs/1000).toFixed(1)} / 2.0 秒 · ${ready.reason}`
   const visibleStatus = preparing ? {title:ready.phase==='countdown'?`即将开战 · ${ready.digit}`:ready.framingIssue?'请调整取景':'等待就位',hint:readyMessage,kind:'partial'} : mode==='real' && phase==='active' ? {title:squatTitle,hint:squat.message,kind:squat.phase==='calibrating'?'partial':'tracked'} : recognition
-  const roundMessage = mode==='real' ? preparing ? readyMessage : phase==='idle' ? '点击准备挑战后再走远就位，无需在电脑前全身入镜。' : phase==='won' ? '真实深蹲挑战完成！本局已停止计数。' : squat.message :
+  const roundMessage = mode==='real' ? soloPaused ? '战斗暂停，继续后请先自然站直。' : preparing ? readyMessage : phase==='idle' ? '点击准备挑战后再走远就位，无需在电脑前全身入镜。' : phase==='won' ? '真实深蹲挑战完成！本局已停止计数。' : squat.message :
     phase==='idle'?'演示模式 · 点击开始，无需摄像头权限':phase==='active'?`演示中 · 已模拟 ${count} 次，点击按钮触发攻击`:'通关啦！这里的数据来自按钮模拟，并非真实训练。'
   function modeControls() {
     return <div className="round-options"><div className="round-mode" role="group" aria-label="挑战模式">
@@ -194,11 +267,12 @@ export default function App({experienceV2=false}:{experienceV2?:boolean}={}) {
   }
   function roundAction(ref: RefObject<HTMLButtonElement | null>) {
     if(preparing)return <button className="primary-button" onClick={()=>reset()}><X size={18}/>取消准备</button>
-    if(phase==='active' && mode==='real')return <div className="real-counting-indicator"><span/>真实动作计数中</div>
+    if(phase==='active' && mode==='real')return <><div className="real-counting-indicator"><span/>{soloPaused?'战斗已暂停':'真实动作计数中'}</div><button className="reset-button" onClick={toggleSoloPause}>{soloPaused?'继续战斗':'暂停战斗'}</button></>
     return phase==='active' ? <button ref={ref} className="primary-button" onClick={attack}><Zap size={19} fill="currentColor"/>模拟完成一次深蹲<ArrowRight size={19}/></button> :
       <button className="primary-button" onClick={start}>{phase==='won'?<RotateCcw size={18}/>:<Play size={18} fill="currentColor"/>}{phase==='won'?(mode==='real'?'再来一局':'再挑战一次'):(mode==='real'?'准备挑战':'开始挑战')}<ArrowRight size={19}/></button>
   }
 
+  if (soloSelected) return <PartyGame solo onExit={()=>{setSoloSelected(false);setChooseMode(true)}}/>
   if (partyMode) return <PartyGame onExit={() => setPartyMode(false)}/>
 
   return <div className="app-shell">
@@ -211,9 +285,8 @@ export default function App({experienceV2=false}:{experienceV2?:boolean}={}) {
 
     <main id="main">
       <ProductHero onStart={() => { if(experienceV2){experimentEvent('start_click');setChooseMode(true);return} entry('party','party_hero','real'); reset(); setPartyMode(true) }}/>
-      {experienceV2 && (tutorial||chooseMode) && <StartGuide key={tutorial?'tutorial':'mode'} tutorial={tutorial} onComplete={()=>{setTutorial(false);try{localStorage.setItem(GUIDE_KEY,'1')}catch{};experimentEvent('tutorial_complete');setChooseMode(true)}} onClose={()=>{if(tutorial)dismissGuide();else setChooseMode(false)}} onSelect={selected=>{setChooseMode(false);reset();if(selected==='party'){entry('party','party_hero','real');setPartyMode(true)}else{setSoloSelected(true);start();requestAnimationFrame(()=>document.getElementById('v2-solo')?.scrollIntoView({behavior:'smooth'}))}}}/>}
-      {experienceV2 && soloSelected && <button className="help-button v2-back" onClick={()=>{reset();setSoloSelected(false);setChooseMode(true)}}>切换玩法</button>}
-      {(!experienceV2 || soloSelected) && <>
+      {experienceV2 && (tutorial||chooseMode) && <StartGuide key={tutorial?'tutorial':'mode'} tutorial={tutorial} onComplete={()=>{setTutorial(false);try{localStorage.setItem(GUIDE_KEY,'1')}catch{};experimentEvent('tutorial_complete');setChooseMode(true)}} onClose={()=>{if(tutorial)dismissGuide();else setChooseMode(false)}} onSelect={selected=>{setChooseMode(false);reset();if(selected==='party'){entry('party','party_hero','real');setPartyMode(true)}else{entry('solo','solo_prepare','real');setSoloSelected(true)}}}/>}
+      {!experienceV2 && <>
       <div id="v2-solo" className="solo-heading"><span>一个人，也能出发</span><h2>单人体感挑战</h2><p>{experienceV2?'已准备：开启摄像头后走远站稳，倒计时结束再下蹲。下蹲后站起来才加 1，无需再次点击准备。':'先和森林团子过过招：10 次深蹲完成单人挑战。想玩三关合作与知识问答？点击「立即开始」创建派对。'}</p></div>
 
       <div ref={battleRoot} className={`game-layout ${battleImmersive ? 'is-battle-immersive' : ''}`}
@@ -232,6 +305,7 @@ export default function App({experienceV2=false}:{experienceV2?:boolean}={}) {
             <div className="monster-speech">{phase === 'won' ? '好吧，今天你赢啦！' : count >= 7 ? '等一下，我的绷带不够啦！' : count >= 4 ? '哎哟，真的醒了…' : count > 0 ? '嘿！有点实力嘛…' : '再睡五分钟… z Z'}</div>
             <Monster hit={hit} defeated={phase === 'won'} damageCount={count}/>
             {count > 0 && <div key={`combo-${count}`} className="combo-badge"><Zap size={16} fill="currentColor"/><strong>{count} HIT</strong><span>{phase === 'won' ? '完美收官！' : count >= 7 ? '胜利就在眼前！' : count >= 4 ? '冒险家，势不可挡！' : '漂亮的一击！'}</span></div>}
+            {(partnerView.state==='combo' || partnerView.state==='attack') && <div key={partnerView.sequence} className="partner-combo-flash">{partnerView.state==='combo'?'组合攻击':'伙伴助攻'} · −{partnerView.damage} HP</div>}
             {hit && <div key={count} className="damage">−10 <Zap size={22} fill="currentColor"/></div>}
             {hit && <div key={`burst-${count}`} className="hit-burst" aria-hidden="true">{Array.from({ length: 6 }, (_, i) => <span key={i}/>)}</div>}
             {phase === 'won' && <div className="victory"><Trophy size={20}/><strong>挑战通关！</strong><span>{mode==='real'?'真实深蹲':'按钮演示'} · {count} 次 · {formattedTime}</span></div>}
@@ -242,7 +316,7 @@ export default function App({experienceV2=false}:{experienceV2?:boolean}={}) {
 
         <aside className="training-panel" aria-label="训练控制区域">
           <div className="panel-title"><span><Leaf size={19}/> 冒险者营地</span><span className="local-tag">画面留在本地</span></div>
-          <CameraCamp challengeCue={mode==='real' ? ready.phase==='countdown' ? 'countdown' : phase==='active' ? 'started' : phase==='won' ? 'won' : undefined : undefined} screenRoot={battleRoot} onImmersiveChange={setBattleImmersive} onRecognitionChange={setRecognition} onPoseFrame={handlePoseFrame} countingMode={mode==='real'}/>
+          <CameraCamp previewCompanion={<ForestPartner state={mode==='real'?partnerView.state:'idle'} energy={companion.current.energy} sequence={partnerView.sequence} damage={partnerView.damage}/>} challengeCue={mode==='real' ? ready.phase==='countdown' ? 'countdown' : phase==='active' ? 'started' : phase==='won' ? 'won' : undefined : undefined} screenRoot={battleRoot} onImmersiveChange={setBattleImmersive} onRecognitionChange={setRecognition} onPoseFrame={handlePoseFrame} countingMode={mode==='real'}/>
           <div className="camp-simulation" hidden={battleImmersive}>
           {modeControls()}
           <div className="simulation-heading"><strong>{mode==='real'?'真实深蹲挑战':'按钮模拟挑战'}</strong><small>切换模式会清空本局</small></div>

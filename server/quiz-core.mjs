@@ -36,7 +36,7 @@ export function createQuizService({env=process.env,fetchImpl=fetch,now=Date.now,
       !positive(env.QUIZ_BUDGET_CNY)||positive(env.QUIZ_BUDGET_CNY)>10||
       !positive(env.QUIZ_INPUT_CNY_PER_MILLION)||!positive(env.QUIZ_OUTPUT_CNY_PER_MILLION))return {enabled:false,notice:'需确认调用次数、金额上限和与模型匹配的价格；尚未请求模型。'}
     if(storeError)return {enabled:false,notice:'本地预算存储不可用，已停止AI调用。'}
-    return {enabled:true,notice:`仅本地${env.QUIZ_MAX_LEVEL==='1'?'AI知识挑战，本次只体验第一关':'三关AI知识挑战，每人每关一道题'}；受持久化次数和金额预算限制。`,maxLevel:env.QUIZ_MAX_LEVEL==='1'?1:3,approvedCalls:Number(env.QUIZ_APPROVED_CALLS)}
+    return {enabled:true,soloSupported:true,notice:`仅本地${env.QUIZ_MAX_LEVEL==='1'?'AI知识挑战，本次只体验第一关':'三关AI知识挑战，每人每关一道题'}；受持久化次数和金额预算限制。`,maxLevel:env.QUIZ_MAX_LEVEL==='1'?1:3,approvedCalls:Number(env.QUIZ_APPROVED_CALLS)}
   }
   function auth(data,partyId,token){
     const p=data.parties[partyId]
@@ -52,9 +52,9 @@ export function createQuizService({env=process.env,fetchImpl=fetch,now=Date.now,
     if(p.level!==LEVELS.indexOf(op.levelId)||p.attempt!==op.levelAttemptId)throw Error('stale_turn')
     if(p.closed)throw Error('session_closed')
   }
-  function createParty(players){
+  function createParty(players,mode){
     if(!capability().enabled)return fail('disabled')
-    if(!Number.isInteger(players)||players<2||players>6)return fail('invalid_players')
+    if(!Number.isInteger(players)||(mode==='solo'?players!==1:players<2||players>6))return fail('invalid_players')
     try{return getStore().write(d=>{
       const today=dayOf(now()),recent=Object.values(d.parties).filter(p=>dayOf(p.createdAt)===today)
       if(recent.length>=(cloud?1000:10)||Object.keys(d.parties).length>= (cloud?2048:256))throw Error('party_limit')
@@ -189,7 +189,7 @@ export function createQuizService({env=process.env,fetchImpl=fetch,now=Date.now,
       const chunks=[];let size=0;for await(const chunk of req){const bytes=Buffer.from(chunk);size+=bytes.length;if(size>2048)return send(413,fail('too_large'));chunks.push(bytes)}
       const input=JSON.parse(Buffer.concat(chunks).toString('utf8')),token=req.headers['x-party-token']
       let value
-      if(route==='party')value=createParty(input.players)
+      if(route==='party')value=createParty(input.players,input.mode)
       else if(route==='question'||route==='judge'){
         if(input.kind!==(route==='question'?'question':'judge'))return send(400,fail('invalid_operation'))
         value=await evaluate(input,token)

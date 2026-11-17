@@ -13,10 +13,10 @@ it('shows a short skippable tutorial once without requesting a camera',()=>{
  fireEvent.click(screen.getByRole('button',{name:'跳过教程'}));expect(localStorage.getItem(GUIDE_KEY)).toBe('1');page.unmount()
  render(createElement(App,{experienceV2:true}));expect(screen.queryByRole('dialog')).toBeNull()
 })
-it('V2 primary CTA asks mode rather than assuming party; solo automatically prepares but does not start early',()=>{
+it('V2 primary CTA asks mode rather than assuming party; solo offers an optional knowledge challenge and does not start early',()=>{
  localStorage.setItem(GUIDE_KEY,'1');render(createElement(App,{experienceV2:true}));fireEvent.click(screen.getByRole('button',{name:'立即开始'}))
- fireEvent.click(screen.getByRole('button',{name:/单人挑战/}));expect(screen.getByRole('button',{name:'取消准备'})).toBeTruthy();expect(screen.queryByText('真实动作计数中')).toBeNull()
- act(()=>makeSequence().hold(175,0,5500).forEach(f=>capture.frame!(f)));expect(screen.getByText('真实动作计数中')).toBeTruthy()
+ fireEvent.click(screen.getByRole('button',{name:/单人挑战/}));fireEvent.click(screen.getByRole('button',{name:'进入第一关'}));fireEvent.click(screen.getByRole('button',{name:'准备挑战'}));expect(screen.getByRole('button',{name:'取消准备'})).toBeTruthy();expect(screen.queryByText(/真实动作计数中/)).toBeNull()
+ act(()=>makeSequence().hold(175,0,5500).forEach(f=>capture.frame!(f)));expect(screen.getByText(/真实动作计数中/)).toBeTruthy()
 })
 it('V2 party selection keeps nickname, hat and optional AI setup',()=>{
  localStorage.setItem(GUIDE_KEY,'1');render(createElement(App,{experienceV2:true}));fireEvent.click(screen.getByRole('button',{name:'立即开始'}));fireEvent.click(screen.getByRole('button',{name:/多人派对（2–6人）/}))

@@ -5,6 +5,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import App from '../src/App'
+import PartyGame from '../src/party/PartyGame'
 import { createQuizService } from '../server/quiz.mjs'
 import { QUIZ_SAVE_KEY } from '../src/party/quizClient'
 import { makeSequence } from './squat-fixtures'
@@ -40,7 +41,7 @@ beforeEach(()=>{
     env:{GYMGO_QUIZ_ENABLED:'true',DASHSCOPE_API_KEY:'fixture-not-a-real-key',QUIZ_APPROVED_CALLS:'100',QUIZ_BUDGET_CNY:'1',QUIZ_INPUT_CNY_PER_MILLION:'.1',QUIZ_OUTPUT_CNY_PER_MILLION:'.2',QUIZ_PRICE_CHECKED_ON:'2026-10-29'}})
   frontend=vi.fn(async(url,req)=>{
     const route=String(url).split('/').at(-1),input=req?.body?JSON.parse(req.body):{},token=req?.headers?.['X-Party-Token']
-    const value=route==='status'?service.capability():route==='party'?service.createParty(input.players):
+    const value=route==='status'?service.capability():route==='party'?service.createParty(input.players,input.mode):
       route==='question'||route==='judge'?await service.evaluate(input,token):service.sessionAction(route,input.partyId,token,input)
     return new Response(JSON.stringify(value),{status:value.error?409:200})
   });vi.stubGlobal('fetch',frontend)
@@ -180,4 +181,56 @@ describe('actual UI + local service + original pose counter; model is a fixture'
       expect(provider).not.toHaveBeenCalled();expect(screen.getByText(/浏览器进度保存失败/)).toBeTruthy()
     }finally{save.mockRestore()}
   })
+})
+
+async function setupSolo(ai: boolean) {
+  render(createElement(PartyGame,{solo:true,onExit:vi.fn()}))
+  const checkbox=screen.getByLabelText('开启 AI 知识挑战（本地）') as HTMLInputElement
+  expect(checkbox.checked).toBe(false)
+  if(ai) fireEvent.click(checkbox)
+  const start=screen.getByRole('button',{name:'进入第一关'}) as HTMLButtonElement
+  await waitFor(()=>expect(start.disabled).toBe(false))
+  fireEvent.click(start)
+  await screen.findByRole('button',{name:'准备挑战'})
+}
+
+it('shares the real quiz coordinator across solo levels at 2 / 3 / 4 reps, after any combo',async()=>{
+  await setupSolo(true)
+  const c=await camera()
+  for(let level=0;level<3;level++){
+    c.start()
+    const before=provider.mock.calls.length
+    for(let rep=1;rep<=level+2;rep++){
+      c.rep()
+      expect(provider).toHaveBeenCalledTimes(before)
+      if(level>=1&&rep===3)expect(document.querySelector('.partner-combo')).toBeTruthy()
+    }
+    await screen.findByLabelText('你的简短答案',{},{timeout:3000})
+    expect(provider).toHaveBeenCalledTimes(before+1)
+    expect(document.querySelector('.camp-standby')).toBeTruthy()
+    c.rep()
+    expect(provider).toHaveBeenCalledTimes(before+1)
+    await answer()
+    expect(provider).toHaveBeenCalledTimes(before+2)
+    if(level<2) {
+      await waitFor(()=>expect(document.querySelector('.quiz-bingo')).toBeNull(),{timeout:3000})
+      fireEvent.click(await screen.findByRole('button',{name:'下一关 · '+['幽灵秘境','巨龙城堡'][level]}))
+      await screen.findByRole('button',{name:'准备挑战'})
+    }
+  }
+  await screen.findByRole('heading',{name:'三关全通！伙伴凯旋'})
+  expect(provider).toHaveBeenCalledTimes(6)
+},15000)
+
+it('solo pure exercise completes all 3 levels without any quiz network calls',async()=>{
+  await setupSolo(false)
+  const c=await camera()
+  for(let level=0;level<3;level++){
+    c.start()
+    for(let rep=0;rep<level+2;rep++)c.rep()
+    if(level<2)fireEvent.click(screen.getByRole('button',{name:'下一关 · '+['幽灵秘境','巨龙城堡'][level]}))
+  }
+  expect(screen.queryByLabelText('你的简短答案')).toBeNull()
+  expect(frontend.mock.calls.filter(([url])=>String(url).includes('/api/quiz/'))).toHaveLength(0)
+  expect(provider).not.toHaveBeenCalled()
 })

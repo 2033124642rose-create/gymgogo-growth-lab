@@ -12,10 +12,11 @@ import type { PoseFrame } from './pose'
 import { containFrame, isolateTrainingScreen } from './trainingScreen'
 import { LocalCuePlayer, StableStatusAnnouncer } from './trainingFeedback'
 import type { SoundMode, ChallengeCue, CueVoiceOptions } from './trainingFeedback'
-import type { RefObject } from 'react'
+import type { ReactNode, RefObject } from 'react'
 
 export interface BattleRecognition { title: string; hint: string; kind: string }
 interface CameraCampProps {
+  previewCompanion?: ReactNode
   screenRoot?: RefObject<HTMLElement | null>
   onImmersiveChange?: (value: boolean) => void
   onRecognitionChange?: (value: BattleRecognition) => void
@@ -36,7 +37,7 @@ const TRACKING_TEXT = {
 } as const
 const GROUP_NAMES = { shoulders: '肩膀', hips: '髋部', knees: '膝盖', ankles: '脚踝' } as const
 
-export default function CameraCamp({ screenRoot, onImmersiveChange, onRecognitionChange, onPoseFrame, challengeCue, hat, countingMode = false, inferencePaused = false, onVoiceEnabledChange,voiceProfile }: CameraCampProps = {}) {
+export default function CameraCamp({ previewCompanion, screenRoot, onImmersiveChange, onRecognitionChange, onPoseFrame, challengeCue, hat, countingMode = false, inferencePaused = false, onVoiceEnabledChange,voiceProfile }: CameraCampProps = {}) {
   const v2=useContext(ExperienceV2)
   const profileRef=useRef(voiceProfile);profileRef.current=voiceProfile
   const pausedRef = useRef(inferencePaused)
@@ -227,6 +228,7 @@ export default function CameraCamp({ screenRoot, onImmersiveChange, onRecognitio
       {hat && <HatOverlay ref={hatLayer} hat={hat.id} playerId={hat.playerId}/>}
       <span className={`camp-video-label ${live ? 'live' : ''}`}><i/>{live ? (state.facing==='environment'?'本地画面 · 后置摄像头':'本地画面 · 镜像显示') : '观测未开启'}</span>
       {!live && <div className="camp-camera-empty"><span className="camp-camera-emblem"><Camera size={30}/></span><strong>营地观测区</strong><span>整装待发，让身体成为冒险的主角。</span><small>画面不上传 · 不录制 · 不保存</small></div>}
+      {previewCompanion && <div className="camp-preview-companion">{previewCompanion}</div>}
       {state.phase === 'loading' && <div className="camp-loading"><LoaderCircle size={17}/> {state.message}</div>}
       {inferencePaused&&<div className="camp-standby" role="status"><Leaf size={32}/><strong>观测营地待机</strong><span>专心答题 · 姿态识别与动作提示已暂停</span><small>设备连接保留，画面不上传</small></div>}
     </div>

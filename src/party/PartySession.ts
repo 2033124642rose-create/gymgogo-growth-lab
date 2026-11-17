@@ -18,8 +18,8 @@ export interface PartySnapshot {
   knowledgeChallenge: boolean; levelAttemptId: number; quiz: ReturnType<KnowledgeTurns['snapshot']>;
   failedAttempts: { levelIndex: number; levelAttemptId: number; counts: number[] }[];
 }
-export function validateNames(names: string[]): string | null {
-  if (names.length < 2 || names.length > 6) return '请选择 2–6 位玩家。'
+export function validateNames(names: string[], solo = false): string | null {
+  if (solo ? names.length !== 1 : names.length < 2 || names.length > 6) return solo ? '单人模式仅限一位玩家。' : '请选择 2–6 位玩家。'
   if (names.some(name => !name.trim() || Array.from(name.trim()).length > 12)) return '每位玩家的昵称需为 1–12 个字符。'
   return null
 }
@@ -29,6 +29,7 @@ const PHASES: PartyPhase[] = ['ready','preparing','active','turnComplete','pause
 
 // Local rule state only; reuses the accepted pose counter and ready gate unchanged.
 export class PartySession {
+  private readonly solo: boolean
   private players: {id:string; name:string; hat:HatId; counts:number[]}[]
   private levelIndex = 0
   private completedLevels = 0
@@ -48,8 +49,9 @@ export class PartySession {
   private counter: SquatCounter | null = null
   private gate = new ReadyGate()
   private message = '下一位冒险者，请主动准备。'
-  constructor(names: string[], hats: HatId[] = names.map((_,index) => defaultHat(index)), options: { knowledgeChallenge?: boolean; partyId?: string } = {}) {
-    const error = validateNames(names)
+  constructor(names: string[], hats: HatId[] = names.map((_,index) => defaultHat(index)), options: { knowledgeChallenge?: boolean; partyId?: string; solo?: boolean } = {}) {
+    this.solo = options.solo === true
+    const error = validateNames(names,this.solo)
     if (error) throw new Error(error)
     if (hats.length !== names.length || hats.some(hat => !isHatId(hat))) throw new Error('请选择有效的帽子。')
     this.knowledge = options.knowledgeChallenge ? new KnowledgeTurns() : null
@@ -59,17 +61,17 @@ export class PartySession {
     this.currentId = this.queue[0]
   }
   checkpoint() {
-    return structuredClone({ version: 1, partyId: this.partyId, players: this.players, levelIndex: this.levelIndex,
+    return structuredClone({ version: 1, ...(this.solo ? {solo:true} : {}), partyId: this.partyId, players: this.players, levelIndex: this.levelIndex,
       completedLevels: this.completedLevels, levelAttemptId: this.levelAttemptId, failedAttempts: this.failedAttempts,
       queue: this.queue, currentId: this.currentId, phase: this.phase, resumeTo: this.resumeTo,
       skipped: [...this.skipped], knowledge: this.knowledge?.export() })
   }
-  static restore(raw: string): PartySession {
+  static restore(raw: string, solo = false): PartySession {
     if (raw.length > 100000) throw Error('invalid_checkpoint')
     const v = JSON.parse(raw) as ReturnType<PartySession['checkpoint']>
     const validCounts = (counts: number[]) => Array.isArray(counts) && counts.length === 3 && counts.every((c,i) => Number.isInteger(c) && c >= 0 && c <= PARTY_LEVELS[i].target)
     if (!v || v.version !== 1 || typeof v.partyId !== 'string' || !/^[-a-zA-Z0-9]{12,80}$/.test(v.partyId) ||
-      !Array.isArray(v.players) || validateNames(v.players.map(p => p.name)) || !v.players.every((p,i) => p.id === `player-${i+1}` && isHatId(p.hat) && validCounts(p.counts)) ||
+      !Array.isArray(v.players) || (v.solo === true) !== solo || validateNames(v.players.map(p => p.name),solo) || !v.players.every((p,i) => p.id === `player-${i+1}` && isHatId(p.hat) && validCounts(p.counts)) ||
       !Number.isInteger(v.levelIndex) || v.levelIndex < 0 || v.levelIndex > 2 ||
       !Number.isInteger(v.completedLevels) || v.completedLevels < 0 || v.completedLevels > v.levelIndex + 1 ||
       !Number.isInteger(v.levelAttemptId) || v.levelAttemptId < 1 || v.levelAttemptId > 10 ||
@@ -80,7 +82,7 @@ export class PartySession {
     if (!ids.includes(v.currentId) || !Array.isArray(v.queue) || new Set(v.queue).size !== v.queue.length ||
       v.queue.some(id => !ids.includes(id)) || !Array.isArray(v.skipped) || v.skipped.some(id => !ids.includes(id)) ||
       (!v.queue.length && !['levelWon','won','exited'].includes(v.phase))) throw Error('invalid_checkpoint')
-    const game = new PartySession(v.players.map(p => p.name),v.players.map(p => p.hat),{knowledgeChallenge:true,partyId:v.partyId})
+    const game = new PartySession(v.players.map(p => p.name),v.players.map(p => p.hat),{knowledgeChallenge:true,partyId:v.partyId,solo})
     game.players = structuredClone(v.players); game.levelIndex = v.levelIndex; game.completedLevels = v.completedLevels
     game.levelAttemptId = v.levelAttemptId; game.failedAttempts = structuredClone(v.failedAttempts)
     game.queue = [...v.queue]; game.currentId = v.currentId; game.skipped = new Set(v.skipped)
@@ -136,6 +138,7 @@ export class PartySession {
     this.restoreDeferredQuiz()
   }
   skip(now: number) {
+    if (this.solo) return
     if (!['ready', 'preparing', 'active', 'quizAnswering', 'quizUncertain', 'quizUnavailable'].includes(this.phase)) return
     this.invalidate(now)
     this.skipped.add(this.currentId)

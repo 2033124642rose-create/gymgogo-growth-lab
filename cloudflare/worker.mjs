@@ -41,7 +41,7 @@ export class QuizBudget {
     if(!capability.enabled)return json({error:'disabled'},503)
     const input=await readJSON(request),token=request.headers.get('X-Party-Token')
     let result
-    if(route==='party')result=core.createParty(input.players)
+    if(route==='party')result=core.createParty(input.players,input.mode)
     else if(['question','judge'].includes(route)){
       if(input.kind!==route)return json({error:'invalid_operation'},400)
       result=await core.evaluate(input,token)
