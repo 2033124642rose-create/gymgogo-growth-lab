@@ -11,3 +11,5 @@ Growth Lab AI只能绑定独立gymgogo-growth-lab-quiz-service，QUIZ_BUDGET必�
 本次V1恢复阶段最多2次真实qwen-flash请求（出题一次、判题一次），无自动重试；失败/超时仍占预算，不清账本。1000累计、300日、来源每日60次、每分钟10次限制必须保留。不得付费升级。
 
 不改已有四事件定义、原始数据、后台权限或V1玩法。变更先本地模拟测试、Preview核对，再按明确授权发布Production，不强推不重写历史。记录功能恢复的时间、Git版本及稳定基线起点。
+
+双人 Git 协作流程见 [DEVELOPMENT.md](DEVELOPMENT.md)。先检查工作区；各用功能分支，通过 PR 合入 develop，保留 master 与全部现有工作。
