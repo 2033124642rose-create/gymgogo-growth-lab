@@ -18,7 +18,10 @@ export async function openAICompatibleJSON(config,input,{fetchImpl,signal}) {
   if(!response.ok){
     const candidate=envelope?.error?.code||envelope?.code
     const providerCode=typeof candidate==='string'&&/^[A-Za-z0-9_.-]{1,32}$/.test(candidate)&&!candidate.includes('sk-')&&!candidate.includes(config.apiKey)?candidate:''
-    throw Object.assign(Error(response.status===403?'model_forbidden':response.status===429?'model_busy':'model_unavailable'),{status:response.status,providerCode})
+    const quotaCodes=['AllocationQuota.FreeTierOnly','Arrearage','insufficient_quota']
+    const providerType=envelope?.error?.type
+    const quotaExhausted=response.status===402||quotaCodes.includes(candidate)||quotaCodes.includes(providerType)
+    throw Object.assign(Error(quotaExhausted?'model_quota_exhausted':response.status===403?'model_forbidden':response.status===429?'model_busy':'model_unavailable'),{status:response.status,providerCode})
   }
   const content=envelope?.choices?.[0]?.message?.content
   if(typeof content!=='string')throw Error('model_format')

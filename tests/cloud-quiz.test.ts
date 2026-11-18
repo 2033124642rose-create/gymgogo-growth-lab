@@ -17,16 +17,16 @@ function setup(overrides={}){
  vi.stubGlobal('fetch',provider)
  const object=new QuizBudget({storage},settings)
  const call=async(route:string,input?:unknown,token?:string,source='a'.repeat(64))=>{const response=await object.fetch(new Request('https://internal/'+route,{method:input===undefined?'GET':'POST',headers:{'X-Quiz-Source':source,'Content-Type':'application/json',...(token?{'X-Party-Token':token}:{})},body:input===undefined?undefined:JSON.stringify(input)}));return response.json()}
- const seed=(update:(d:any)=>void)=>{const s=openBudgetStore(storage,{source:'a'.repeat(64),limits:{total:1000,daily:300,sourceDaily:60,sourceMinute:10}});const d=s.read();update(d);storage.sql.exec('INSERT INTO quiz_state(id,body) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body',JSON.stringify(d))}
+ const seed=(update:(d:any)=>void)=>{const s=openBudgetStore(storage);const d=s.read();update(d);storage.sql.exec('INSERT INTO quiz_state(id,body) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body',JSON.stringify(d))}
  return {storage,settings,object,provider,call,seed,setVerdict:(v:string)=>{verdict=v}}
 }
 const operation=(party:any,id=1,kind='question',extra={})=>({partyId:party.partyId,levelId:'slime-forest',levelAttemptId:1,playerId:'player-1',operationId:id,kind,...extra})
 describe('Cloudflare handlers + actual SQLite transactions; provider simulated',()=>{
- it.each(['2020-01-01', '', 'not-a-date', '2099-01-01'])('ignores audit date %s but still reserves durable budget',async date=>{
+ it.each(['2020-01-01', '', 'not-a-date', '2099-01-01'])('ignores audit date %s and still counts provider calls',async date=>{
   const s=setup({QUIZ_PRICE_CHECKED_ON:date});const p=await s.call('party',{players:2})
   const q=await s.call('question',operation(p),p.token)
   expect(q.source).toBe('ai');expect(s.provider).toHaveBeenCalledTimes(1)
-  expect(openBudgetStore(s.storage,{source:'a'.repeat(64),limits:{total:1000,daily:300,sourceDaily:60,sourceMinute:10}}).read().totalCalls).toBe(1)
+  expect(openBudgetStore(s.storage).read().totalCalls).toBe(1)
  })
  it.each(['correct','incorrect','uncertain'])('returns a structured question and %s judgment without exposing references',async verdict=>{
   const s=setup();const p=await s.call('party',{players:2});const q=await s.call('question',operation(p),p.token)
@@ -42,48 +42,37 @@ describe('Cloudflare handlers + actual SQLite transactions; provider simulated',
   const response=await next.fetch(new Request('https://internal/question',{method:'POST',headers:{'X-Quiz-Source':'a'.repeat(64),'X-Party-Token':p.token,'Content-Type':'application/json'},body:JSON.stringify(op)}))
   expect(await response.json()).toEqual(r[0]);expect(s.provider).toHaveBeenCalledTimes(1)
  })
- it.each(['total','daily','sourceDaily','sourceMinute'])('stops at the exact %s request limit',async limit=>{
-  const s=setup();const p=await s.call('party',{players:2})
-  s.seed(d=>{const day=new Date(Date.now()+8*3600000).toISOString().slice(0,10);d.day=day
-   if(limit==='total')d.totalCalls=1000
-   if(limit==='daily')d.dailyCalls=300
-   if(limit==='sourceDaily')d.sources['a'.repeat(64)]={day,calls:60,recent:[]}
-   if(limit==='sourceMinute')d.sources['a'.repeat(64)]={day,calls:10,recent:Array(10).fill(Date.now())}
+ it('dispatches after the old global, party and source limits have been reached',async()=>{
+  const s=setup({QUIZ_BUDGET_CNY:'0'}),p=await s.call('party',{players:2})
+  s.seed(d=>{
+   const day=new Date(Date.now()+8*3600000).toISOString().slice(0,10)
+   d.day=day;d.totalCalls=1000;d.dailyCalls=300;d.totalReservedMicro=5_000_000
+   d.parties[p.partyId].totalCalls=100
+   d.sources['a'.repeat(64)]={day,calls:60,recent:Array(10).fill(Date.now())}
   })
-  expect((await s.call('question',operation(p),p.token)).error).toBe(limit==='sourceMinute'?'rate_limited':'budget_exhausted');expect(s.provider).not.toHaveBeenCalled()
+  expect((await s.call('question',operation(p),p.token)).source).toBe('ai')
+  expect(s.provider).toHaveBeenCalledTimes(1)
+  expect(openBudgetStore(s.storage).read().totalCalls).toBe(1001)
  })
- it('concurrent parties cannot exceed a final remaining global reservation',async()=>{
-  const s=setup(),p=await s.call('party',{players:2}),p2=await s.call('party',{players:2});s.seed(d=>{d.totalCalls=999})
-  const r=await Promise.all([s.call('question',operation(p),p.token),s.call('question',operation(p2),p2.token)])
-  expect(r.filter(v=>v.source==='ai')).toHaveLength(1);expect(s.provider).toHaveBeenCalledTimes(1)
- })
- it('enforces the last source daily slot atomically across different parties',async()=>{
-  const s=setup(),p=await s.call('party',{players:2}),p2=await s.call('party',{players:2})
-  s.seed(d=>{const day=new Date(Date.now()+8*3600000).toISOString().slice(0,10);d.sources['a'.repeat(64)]={day,calls:59,recent:[]}})
-  const results=await Promise.all([s.call('question',operation(p),p.token),s.call('question',operation(p2),p2.token)])
-  expect(results.filter(v=>v.source==='ai')).toHaveLength(1);expect(s.provider).toHaveBeenCalledTimes(1)
- })
- it('stops before dispatch if the conservative money reservation would exceed the cap',async()=>{
-  const s=setup({QUIZ_BUDGET_CNY:'0.001'}),p=await s.call('party',{players:2})
-  expect((await s.call('question',operation(p),p.token)).error).toBe('budget_exhausted');expect(s.provider).not.toHaveBeenCalled()
- })
- it('rolls back a failed source reservation and permits another source independently',async()=>{
-  const s=setup(),p=await s.call('party',{players:2});s.seed(d=>{const day=new Date(Date.now()+8*3600000).toISOString().slice(0,10);d.sources['a'.repeat(64)]={day,calls:60,recent:[]}})
-  expect((await s.call('question',operation(p),p.token)).error).toBe('budget_exhausted')
-  expect((await s.call('question',operation(p),p.token,'b'.repeat(64))).source).toBe('ai');expect(s.provider).toHaveBeenCalledTimes(1)
- })
+ it.each([[403,'AllocationQuota.FreeTierOnly','model_quota_exhausted'],[429,'insufficient_quota','model_quota_exhausted'],[429,'Throttling.Concurrency','model_busy']])(
+  'maps provider response %s %s to %s',async(status,code,error)=>{
+   const s=setup(),p=await s.call('party',{players:2})
+   s.provider.mockResolvedValueOnce(Response.json({error:{code}},{status}))
+   expect((await s.call('question',operation(p),p.token)).error).toBe(error)
+   expect(s.provider).toHaveBeenCalledTimes(1)
+  })
  it('fails closed on missing secrets, flags and unavailable SQLite',async()=>{
-  for(const overrides of [{AI_API_KEY:''},{PUBLIC_AI_ENABLED:'false'},{FREE_QUOTA_CONFIRMED:'false'},{QUIZ_BUDGET_CNY:'0'}]){
+  for(const overrides of [{AI_API_KEY:''},{PUBLIC_AI_ENABLED:'false'}]){
    const s=setup(overrides);expect((await s.call('status')).enabled).toBe(false);expect(s.provider).not.toHaveBeenCalled()
   }
   const s=setup();vi.spyOn(s.storage.sql,'exec').mockImplementation(()=>{throw Error('private-storage-detail')})
   expect((await s.call('party',{players:2})).error).toBe('store_unavailable');expect(s.provider).not.toHaveBeenCalled()
  })
- it('retains reservations and cached failures after provider errors',async()=>{
+ it('retains counts and cached failures after provider errors',async()=>{
   const s=setup(),p=await s.call('party',{players:2});s.provider.mockRejectedValue(Error('private fixture-cloud-only'))
   const result=await s.call('question',operation(p),p.token);expect(result.error).toBe('model_unavailable')
   await s.call('question',operation(p),p.token);expect(s.provider).toHaveBeenCalledTimes(1)
-  const d=openBudgetStore(s.storage,{source:'a'.repeat(64),limits:{}}).read();expect(d.totalCalls).toBe(1);expect(d.totalReservedMicro).toBeGreaterThan(0)
+  const d=openBudgetStore(s.storage).read();expect(d.totalCalls).toBe(1);expect(d.totalReservedMicro).toBe(0)
   expect(JSON.stringify(result)).not.toContain('fixture-cloud-only')
  })
  it('keeps timeout attempts charged and never repeats an unknown model result',async()=>{
@@ -92,7 +81,7 @@ describe('Cloudflare handlers + actual SQLite transactions; provider simulated',
   expect((await s.call('question',operation(p),p.token)).error).toBe('model_timeout')
   expect((await s.call('question',operation(p),p.token)).error).toBe('model_timeout')
   expect(s.provider).toHaveBeenCalledTimes(1)
-  expect(openBudgetStore(s.storage,{source:'a'.repeat(64),limits:{}}).read().totalCalls).toBe(1)
+  expect(openBudgetStore(s.storage).read().totalCalls).toBe(1)
  })
  it('requires administrator authorization and returns counters only',async()=>{
   const s=setup({PUBLIC_AI_ENABLED:'false',QUIZ_ADMIN_TOKEN:'fixture-admin-secret-at-least-32-characters'})

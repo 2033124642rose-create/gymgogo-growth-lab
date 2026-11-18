@@ -10,6 +10,7 @@ const notices: Record<string,string> = {
   store_unavailable:'题目与预算服务暂不可用，已停止调用；请稍后重试，这不代表额度用完。', session_expired:'保存的派对已过期，不能重新抽取原回合题目。',
   session_invalid:'无法恢复原派对凭据，请结束这场挑战。', question_unsuitable:'AI题目未通过可答性检查，尚未向玩家出题。',
   judgment_format:'判题响应不完整，未判失败。', model_forbidden:'百炼模型权限未通过，请检查服务端配置。',
+  model_quota_exhausted:'模型服务商的 API 额度已用完，暂时无法使用 AI 问答。本次未判失败，可返回选择纯运动模式。',
   model_busy:'模型服务繁忙，未判失败。', generation_limit:'出题尝试次数已用完，请安全退出。', judgment_limit:'本题判题尝试次数已用完，请安全退出。',
   rate_limited:'本分钟请求较多，请等约一分钟后主动重试；本次未调用模型，也未判失败。',
   trial_level_limit:'本场冒险范围为第一关，不会请求后续关卡题目。',

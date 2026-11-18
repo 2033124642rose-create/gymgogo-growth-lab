@@ -22,7 +22,7 @@ export function createAIClient({env=process.env,fetchImpl=fetch,timeoutMs=12000}
       }catch(error){
         if(controller.signal.aborted)throw Error('model_timeout')
         // Never propagate transport messages, URLs, headers or raw provider bodies.
-        if(['model_format','model_forbidden','model_busy','model_unavailable'].includes(error?.message))throw error
+        if(['model_format','model_forbidden','model_quota_exhausted','model_busy','model_unavailable'].includes(error?.message))throw error
         throw Error('model_unavailable')
       }finally{clearTimeout(timer)}
     },

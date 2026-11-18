@@ -27,12 +27,17 @@ export function createQuizService({env=process.env,fetchImpl=fetch,now=Date.now,
   function capability(){
     if(publicMode||env.GYMGO_QUIZ_ENABLED!=='true')return {enabled:false,notice:'AI知识挑战未启用，请检查服务配置与可用调用额度，或选择纯运动冒险。'}
     if(!ai.status().ready)return {enabled:false,notice:ai.status().notice}
+    if(cloud){
+      return storeError
+        ? {enabled:false,notice:'本地预算存储不可用，已停止AI调用。'}
+        : {enabled:true,soloSupported:true,notice:'AI知识挑战已启用。',maxLevel:env.QUIZ_MAX_LEVEL==='1'?1:3}
+    }
     // Existing Bailian/qwen-flash configuration remains compatible. A changed model/provider
     // must explicitly bind its checked prices, rather than silently reusing the old model's rates.
     if((ai.provider!=='bailian'||ai.model!=='qwen-flash'||env.QUIZ_PRICE_PROVIDER!==undefined||env.QUIZ_PRICE_MODEL!==undefined)&&
       (env.QUIZ_PRICE_PROVIDER!==ai.provider||env.QUIZ_PRICE_MODEL!==ai.model))return {enabled:false,notice:'模型价格配置与当前服务商或模型不匹配，请先核对并绑定价格；尚未请求模型。'}
     // Checked-on is audit metadata only; prices and durable budgets remain mandatory.
-    if(!positive(env.QUIZ_APPROVED_CALLS)||positive(env.QUIZ_APPROVED_CALLS)>(cloud?1000000:100)||!Number.isInteger(Number(env.QUIZ_APPROVED_CALLS))||
+    if(!positive(env.QUIZ_APPROVED_CALLS)||positive(env.QUIZ_APPROVED_CALLS)>100||!Number.isInteger(Number(env.QUIZ_APPROVED_CALLS))||
       !positive(env.QUIZ_BUDGET_CNY)||positive(env.QUIZ_BUDGET_CNY)>10||
       !positive(env.QUIZ_INPUT_CNY_PER_MILLION)||!positive(env.QUIZ_OUTPUT_CNY_PER_MILLION))return {enabled:false,notice:'需确认调用次数、金额上限和与模型匹配的价格；尚未请求模型。'}
     if(storeError)return {enabled:false,notice:'本地预算存储不可用，已停止AI调用。'}
@@ -96,15 +101,15 @@ export function createQuizService({env=process.env,fetchImpl=fetch,now=Date.now,
     if(d.day!==today){d.day=today;d.dailyCalls=0;d.reservedMicro=0}
     d.recent=d.recent.filter(t=>now()-t<60000)
     // UTF-8 byte upper bound plus template overhead; model output is fixed/capped. No refund on failure.
-    const cost=Math.ceil(10000*Number(env.QUIZ_INPUT_CNY_PER_MILLION)+MAX_OUTPUT*Number(env.QUIZ_OUTPUT_CNY_PER_MILLION))
-    if(!Number.isSafeInteger(cost)||cost<=0||d.totalCalls>=Number(env.QUIZ_APPROVED_CALLS)||d.dailyCalls>=(cloud?Number(env.QUIZ_DAILY_CALLS):100)||p.totalCalls>=100||
-      d.totalReservedMicro+cost>Math.floor(Number(env.QUIZ_BUDGET_CNY)*1e6))throw Error('budget_exhausted')
-    if(d.recent.length>=(cloud?1000:6))throw Error('rate_limited')
+    const cost=cloud?0:Math.ceil(10000*Number(env.QUIZ_INPUT_CNY_PER_MILLION)+MAX_OUTPUT*Number(env.QUIZ_OUTPUT_CNY_PER_MILLION))
+    if(!cloud&&(!Number.isSafeInteger(cost)||cost<=0||d.totalCalls>=Number(env.QUIZ_APPROVED_CALLS)||d.dailyCalls>=100||p.totalCalls>=100||
+      d.totalReservedMicro+cost>Math.floor(Number(env.QUIZ_BUDGET_CNY)*1e6)))throw Error('budget_exhausted')
+    if(!cloud&&d.recent.length>=6)throw Error('rate_limited')
     if(Object.values(p.ops).some(v=>v.status==='pending'))throw Error('party_busy')
     const t=p.turns[turnKey(op)]??={generations:0,judgments:0}
-    if(op.kind==='question'){if(t.generations>=3)throw Error('generation_limit');t.generations++}
-    else {if(t.judgments>=3)throw Error('judgment_limit');t.judgments++}
-    d.totalCalls++;d.dailyCalls++;p.totalCalls++;d.reservedMicro+=cost;d.totalReservedMicro+=cost;d.recent.push(now())
+    if(op.kind==='question'){if(!cloud&&t.generations>=3)throw Error('generation_limit');t.generations++}
+    else {if(!cloud&&t.judgments>=3)throw Error('judgment_limit');t.judgments++}
+    d.totalCalls++;d.dailyCalls++;p.totalCalls++;d.reservedMicro+=cost;d.totalReservedMicro+=cost;if(!cloud)d.recent.push(now())
     return t
   }
   function model(messages,maxTokens,temperature){
@@ -164,7 +169,7 @@ export function createQuizService({env=process.env,fetchImpl=fetch,now=Date.now,
           result={verdict,explanation:j.explanation,monsterReaction:text(j.monsterReaction,40)?j.monsterReaction:'怪兽挠挠头：这回合得认真记下来。',
             reactionSource:text(j.monsterReaction,40)?'ai':'local',source:'ai',receipt:{id:randomUUID(),model:ai.model,generatedAt:new Date(now()).toISOString()}}
         }
-      }catch(e){result=fail(['model_forbidden','model_busy','model_timeout','question_unsuitable','judgment_format','input_too_large'].includes(e.message)?e.message:'model_unavailable');if(e.message==='question_unsuitable'&&e.reason)result.reason=e.reason}
+      }catch(e){result=fail(['model_forbidden','model_quota_exhausted','model_busy','model_timeout','question_unsuitable','judgment_format','input_too_large'].includes(e.message)?e.message:'model_unavailable');if(e.message==='question_unsuitable'&&e.reason)result.reason=e.reason}
       try{return getStore().write(d=>{
         const p=auth(d,op.partyId,token),r=p.ops[op.operationId],t=p.turns[turnKey(op)]
         r.status='done';r.result=result

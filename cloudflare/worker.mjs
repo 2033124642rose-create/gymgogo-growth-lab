@@ -23,21 +23,20 @@ export class QuizBudget {
   }
   async run(request){
     const env=this.env,url=new URL(request.url),route=url.pathname.split('/').at(-1)
-    if(route!=='admin-status'&&(env.PUBLIC_AI_ENABLED!=='true'||env.FREE_QUOTA_CONFIRMED!=='true'))return json(route==='status'?{enabled:false,notice:'AI知识挑战暂未启用，纯运动冒险仍可使用。'}:{error:'disabled'})
-    const limits={total:bounded(env.QUIZ_APPROVED_CALLS,1000,1000000),daily:bounded(env.QUIZ_DAILY_CALLS,300,1000000),sourceDaily:bounded(env.QUIZ_SOURCE_DAILY_CALLS,60,1000000),sourceMinute:bounded(env.QUIZ_SOURCE_MINUTE_CALLS,10,1000000)}
+    if(route!=='admin-status'&&env.PUBLIC_AI_ENABLED!=='true')return json(route==='status'?{enabled:false,notice:'AI知识挑战暂未启用，纯运动冒险仍可使用。'}:{error:'disabled'})
     const source=request.headers.get('X-Quiz-Source')
     if(!/^[a-f0-9]{64}$/.test(source||''))return json({error:'source_unavailable'},403)
-    const store=openBudgetStore(this.ctx.storage,{source,limits})
+    const store=openBudgetStore(this.ctx.storage)
     if(route==='admin-status'){
       const expected=env.QUIZ_ADMIN_TOKEN||'',actual=request.headers.get('Authorization')||''
       if(expected.length<32||actual.length!==expected.length+7||!timingSafeEqual(Buffer.from(actual.slice(7)),Buffer.from(expected))||!actual.startsWith('Bearer '))return json({error:'forbidden'},403)
-      const d=store.read();return json({totalCalls:d.totalCalls,reservedCny:d.totalReservedMicro/1e6,day:d.day,dailyCalls:d.dailyCalls,limits})
+      const d=store.read();return json({totalCalls:d.totalCalls,reservedCny:d.totalReservedMicro/1e6,day:d.day,dailyCalls:d.dailyCalls,limits:null})
     }
-    const core=createQuizService({env:{...env,GYMGO_QUIZ_ENABLED:'true',QUIZ_APPROVED_CALLS:String(limits.total),QUIZ_DAILY_CALLS:String(limits.daily)},openStore:()=>store,cloud:true,timeoutMs:bounded(env.MODEL_TIMEOUT_MS,12000,12000)})
+    const core=createQuizService({env:{...env,GYMGO_QUIZ_ENABLED:'true'},openStore:()=>store,cloud:true,timeoutMs:bounded(env.MODEL_TIMEOUT_MS,12000,12000)})
     const capability=core.capability()
     // A read failure must close even the capability check.
     store.read()
-    if(route==='status')return json({...capability,notice:capability.enabled?'AI知识挑战已启用，每人每关一道题；受全站及来源额度保护。':capability.notice})
+    if(route==='status')return json(capability)
     if(!capability.enabled)return json({error:'disabled'},503)
     const input=await readJSON(request),token=request.headers.get('X-Party-Token')
     let result
